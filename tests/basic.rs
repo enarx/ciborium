@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use ciborium_basic::*;
+use ciborium::basic::*;
 
 use std::convert::{AsMut, TryFrom};
 use std::io::{Read, Write};

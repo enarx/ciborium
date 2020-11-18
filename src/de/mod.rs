@@ -5,13 +5,13 @@
 mod error;
 mod read;
 
+use crate::basic::*;
 pub use error::Error;
 pub use read::Read;
 
 use alloc::{string::String, vec::Vec};
 use core::convert::{TryFrom, TryInto};
 
-use ciborium_basic::*;
 use serde::de::{self, Deserialize as _, Deserializer as _};
 
 #[inline]

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#![cfg(feature = "serde")]
+
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
-use ciborium_serde::value::Value;
-use ciborium_serde::{cbor, de::from_reader, ser::into_writer};
+use ciborium::value::Value;
+use ciborium::{cbor, de::from_reader, ser::into_writer};
 
 use rstest::rstest;
 

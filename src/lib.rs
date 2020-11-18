@@ -22,8 +22,15 @@
 
 extern crate alloc;
 
+pub mod basic;
+
+#[cfg(feature = "serde")]
 pub mod de;
+
+#[cfg(feature = "serde")]
 pub mod ser;
+
+#[cfg(feature = "serde")]
 pub mod value;
 
 /// Build a `Value` conveniently.
@@ -34,7 +41,7 @@ pub mod value;
 /// so you should handle the error appropriately.
 ///
 /// ```
-/// use ciborium_serde::cbor;
+/// use ciborium::cbor;
 ///
 /// let value = cbor!({
 ///     "code" => 415,
@@ -43,8 +50,8 @@ pub mod value;
 ///     "extra" => { "numbers" => [8.2341e+4, 0.251425] },
 /// }).unwrap();
 /// ```
-
 #[macro_export]
+#[cfg(feature = "serde")]
 macro_rules! cbor {
     (@map {$($key:expr => $val:expr),*} $(,)?) => {{
         $crate::value::Value::Map(vec![

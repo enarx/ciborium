@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use ciborium_serde::value::Integer;
+#![cfg(feature = "serde")]
+
+use ciborium::value::Integer;
 
 use core::convert::{TryFrom, TryInto};
 use core::fmt::Debug;

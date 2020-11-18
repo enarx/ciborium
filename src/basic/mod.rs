@@ -53,11 +53,6 @@
 //!                  Title
 //! ```
 
-#![no_std]
-#![deny(clippy::all)]
-#![deny(missing_docs)]
-#![deny(clippy::cargo)]
-
 mod imm;
 mod maj;
 mod min;

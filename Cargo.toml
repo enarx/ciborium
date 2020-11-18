@@ -1,5 +1,18 @@
-[workspace]
-members = [
-    "ciborium-basic",
-    "ciborium-serde",
-]
+[package]
+name = "ciborium"
+version = "0.1.0"
+authors = ["Nathaniel McCallum <npmccallum@redhat.com>"]
+edition = "2018"
+metadata = []
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
+half = "1.6"
+
+[dev-dependencies]
+rstest = "0.6"
+hex = "0.4"
+
+[features]
+default = []
+std = ["serde/std"]
