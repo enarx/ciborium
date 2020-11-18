@@ -80,7 +80,6 @@ implfrom! {
     Float(f32),
 
     Text(String),
-    Text(char),
     Text(&str),
 
     Bool(bool),
@@ -90,4 +89,13 @@ implfrom! {
 
     Map(&[(Value, Value)]),
     Map(Vec<(Value, Value)>),
+}
+
+impl From<char> for Value {
+    #[inline]
+    fn from(value: char) -> Self {
+        let mut v = String::with_capacity(1);
+        v.push(value);
+        Value::Text(v)
+    }
 }
