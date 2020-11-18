@@ -86,6 +86,16 @@ macro_rules! mkserialize {
     };
 }
 
+struct Named<T> {
+    name: &'static str,
+    data: T,
+}
+
+struct Map {
+    data: Vec<(Value, Value)>,
+    temp: Option<Value>,
+}
+
 struct Serializer<T>(T);
 
 impl ser::Serializer for Serializer<()> {
@@ -95,10 +105,10 @@ impl ser::Serializer for Serializer<()> {
     type SerializeSeq = Serializer<Vec<Value>>;
     type SerializeTuple = Serializer<Vec<Value>>;
     type SerializeTupleStruct = Serializer<Vec<Value>>;
-    type SerializeTupleVariant = Serializer<(&'static str, Vec<Value>)>;
-    type SerializeMap = Serializer<(Vec<(Value, Value)>, Option<Value>)>;
+    type SerializeTupleVariant = Serializer<Named<Vec<Value>>>;
+    type SerializeMap = Serializer<Map>;
     type SerializeStruct = Serializer<Vec<(Value, Value)>>;
-    type SerializeStructVariant = Serializer<(&'static str, Vec<(Value, Value)>)>;
+    type SerializeStructVariant = Serializer<Named<Vec<(Value, Value)>>>;
 
     mkserialize! {
         serialize_bool(bool),
@@ -199,12 +209,18 @@ impl ser::Serializer for Serializer<()> {
         variant: &'static str,
         length: usize,
     ) -> Result<Self::SerializeTupleVariant, Error> {
-        Ok(Serializer((variant, Vec::with_capacity(length))))
+        Ok(Serializer(Named {
+            name: variant,
+            data: Vec::with_capacity(length),
+        }))
     }
 
     #[inline]
     fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, Error> {
-        Ok(Serializer((Vec::with_capacity(length.unwrap_or(0)), None)))
+        Ok(Serializer(Map {
+            data: Vec::with_capacity(length.unwrap_or(0)),
+            temp: None,
+        }))
     }
 
     #[inline]
@@ -224,7 +240,10 @@ impl ser::Serializer for Serializer<()> {
         variant: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStructVariant, Error> {
-        Ok(Serializer((variant, Vec::with_capacity(length))))
+        Ok(Serializer(Named {
+            name: variant,
+            data: Vec::with_capacity(length),
+        }))
     }
 }
 
@@ -276,44 +295,44 @@ impl<'a> ser::SerializeTupleStruct for Serializer<Vec<Value>> {
     }
 }
 
-impl<'a> ser::SerializeTupleVariant for Serializer<(&'static str, Vec<Value>)> {
+impl<'a> ser::SerializeTupleVariant for Serializer<Named<Vec<Value>>> {
     type Ok = Value;
     type Error = Error;
 
     #[inline]
     fn serialize_field<U: ?Sized + ser::Serialize>(&mut self, value: &U) -> Result<(), Error> {
-        self.0 .1.push(Value::serialized(&value)?);
+        self.0.data.push(Value::serialized(&value)?);
         Ok(())
     }
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        Ok(vec![(self.0 .0.into(), self.0 .1.into())].into())
+        Ok(vec![(self.0.name.into(), self.0.data.into())].into())
     }
 }
 
-impl<'a> ser::SerializeMap for Serializer<(Vec<(Value, Value)>, Option<Value>)> {
+impl<'a> ser::SerializeMap for Serializer<Map> {
     type Ok = Value;
     type Error = Error;
 
     #[inline]
     fn serialize_key<U: ?Sized + ser::Serialize>(&mut self, key: &U) -> Result<(), Error> {
-        self.0 .1 = Some(Value::serialized(key)?);
+        self.0.temp = Some(Value::serialized(key)?);
         Ok(())
     }
 
     #[inline]
     fn serialize_value<U: ?Sized + ser::Serialize>(&mut self, value: &U) -> Result<(), Error> {
-        let key = self.0 .1.take().unwrap();
+        let key = self.0.temp.take().unwrap();
         let val = Value::serialized(&value)?;
 
-        self.0 .0.push((key, val));
+        self.0.data.push((key, val));
         Ok(())
     }
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        Ok(self.0 .0.into())
+        Ok(self.0.data.into())
     }
 }
 
@@ -339,7 +358,7 @@ impl<'a> ser::SerializeStruct for Serializer<Vec<(Value, Value)>> {
     }
 }
 
-impl<'a> ser::SerializeStructVariant for Serializer<(&'static str, Vec<(Value, Value)>)> {
+impl<'a> ser::SerializeStructVariant for Serializer<Named<Vec<(Value, Value)>>> {
     type Ok = Value;
     type Error = Error;
 
@@ -351,13 +370,13 @@ impl<'a> ser::SerializeStructVariant for Serializer<(&'static str, Vec<(Value, V
     ) -> Result<(), Self::Error> {
         let k = Value::serialized(&key)?;
         let v = Value::serialized(&value)?;
-        self.0 .1.push((k, v));
+        self.0.data.push((k, v));
         Ok(())
     }
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        Ok(vec![(self.0 .0.into(), self.0 .1.into())].into())
+        Ok(vec![(self.0.name.into(), self.0.data.into())].into())
     }
 }
 
