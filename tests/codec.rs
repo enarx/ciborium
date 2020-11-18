@@ -2,7 +2,6 @@
 
 #![cfg(feature = "serde")]
 
-#[cfg(not(feature = "std"))]
 extern crate alloc;
 
 use ciborium::value::Value;
