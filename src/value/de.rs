@@ -13,10 +13,10 @@ impl<'a> From<Integer> for de::Unexpected<'a> {
     #[inline]
     fn from(value: Integer) -> Self {
         u64::try_from(value)
-            .map(|x| de::Unexpected::Unsigned(x))
+            .map(de::Unexpected::Unsigned)
             .unwrap_or_else(|_| {
                 i64::try_from(value)
-                    .map(|x| de::Unexpected::Signed(x))
+                    .map(de::Unexpected::Signed)
                     .unwrap_or_else(|_| de::Unexpected::Other("large integer"))
             })
     }
