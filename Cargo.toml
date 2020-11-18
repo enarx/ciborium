@@ -2,8 +2,24 @@
 name = "ciborium"
 version = "0.1.0"
 authors = ["Nathaniel McCallum <npmccallum@redhat.com>"]
+license = "Apache-2.0"
 edition = "2018"
-metadata = []
+homepage = "https://github.com/enarx/ciborium"
+repository = "https://github.com/enarx/ciborium"
+description = "CBOR codec utilities with serde support"
+readme = "README.md"
+keywords = ["cbor", "serde", ]
+categories = ["data-structures", "embedded", "encoding", "no-std", "parsing"]
+exclude = [ ".gitignore", ".github/*" ]
+
+[badges]
+# See https://doc.rust-lang.org/cargo/reference/manifest.html#the-badges-section
+github = { repository = "enarx/ciborium", workflow = "test" }
+#github = { repository = "enarx/ciborium", workflow = "lint" }
+maintenance = { status = "actively-developed" }
+is-it-maintained-issue-resolution = { repository = "enarx/ciborium" }
+is-it-maintained-open-issues = { repository = "enarx/ciborium" }
+
 
 [dependencies]
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
