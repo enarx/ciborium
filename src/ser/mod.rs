@@ -3,11 +3,10 @@
 //! Serde serialization support for CBOR
 
 mod error;
-mod write;
 
 use crate::basic::*;
+use crate::io::Write;
 pub use error::Error;
-use write::Write;
 
 use alloc::string::ToString;
 use core::convert::TryFrom;
@@ -35,7 +34,7 @@ impl<T: Write> From<T> for Encoder<T> {
 
 impl<'a, T: Write> ser::Serializer for &'a mut Encoder<T>
 where
-    T::Error: 'static + ser::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Ok = ();
     type Error = Error<T::Error>;
@@ -309,7 +308,7 @@ struct CollectionEncoder<'a, T: Write> {
 
 impl<'a, T: Write> ser::SerializeSeq for CollectionEncoder<'a, T>
 where
-    T::Error: 'static + ser::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Ok = ();
     type Error = Error<T::Error>;
@@ -327,7 +326,7 @@ where
 
 impl<'a, T: Write> ser::SerializeTuple for CollectionEncoder<'a, T>
 where
-    T::Error: 'static + ser::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Ok = ();
     type Error = Error<T::Error>;
@@ -345,7 +344,7 @@ where
 
 impl<'a, T: Write> ser::SerializeTupleStruct for CollectionEncoder<'a, T>
 where
-    T::Error: 'static + ser::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Ok = ();
     type Error = Error<T::Error>;
@@ -363,7 +362,7 @@ where
 
 impl<'a, T: Write> ser::SerializeTupleVariant for CollectionEncoder<'a, T>
 where
-    T::Error: 'static + ser::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Ok = ();
     type Error = Error<T::Error>;
@@ -381,7 +380,7 @@ where
 
 impl<'a, T: Write> ser::SerializeMap for CollectionEncoder<'a, T>
 where
-    T::Error: 'static + ser::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Ok = ();
     type Error = Error<T::Error>;
@@ -404,7 +403,7 @@ where
 
 impl<'a, T: Write> ser::SerializeStruct for CollectionEncoder<'a, T>
 where
-    T::Error: 'static + ser::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Ok = ();
     type Error = Error<T::Error>;
@@ -425,7 +424,7 @@ where
 
 impl<'a, T: Write> ser::SerializeStructVariant for CollectionEncoder<'a, T>
 where
-    T::Error: 'static + ser::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Ok = ();
     type Error = Error<T::Error>;
@@ -450,7 +449,7 @@ pub fn into_writer<T: ?Sized + ser::Serialize, W: Write>(
     writer: W,
 ) -> Result<(), Error<W::Error>>
 where
-    W::Error: 'static + ser::StdError,
+    W::Error: core::fmt::Debug,
 {
     let mut encoder = Encoder::from(writer);
     value.serialize(&mut encoder)?;

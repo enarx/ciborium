@@ -33,16 +33,9 @@ impl<T: Debug> Display for Error<T> {
     }
 }
 
-impl<T: 'static + StdError> StdError for Error<T> {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            Self::Io(e) => Some(e),
-            Self::Value(_) => None,
-        }
-    }
-}
+impl<T: Debug> StdError for Error<T> {}
 
-impl<T: 'static + StdError> SerError for Error<T> {
+impl<T: Debug> SerError for Error<T> {
     fn custom<U: Display>(msg: U) -> Self {
         Error::Value(msg.to_string())
     }

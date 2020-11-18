@@ -3,11 +3,10 @@
 //! Serde deserialization support for CBOR
 
 mod error;
-mod read;
 
 use crate::basic::*;
+use crate::io::Read;
 pub use error::Error;
-use read::Read;
 
 use alloc::{string::String, vec::Vec};
 use core::convert::{TryFrom, TryInto};
@@ -15,10 +14,7 @@ use core::convert::{TryFrom, TryInto};
 use serde::de::{self, Deserialize as _, Deserializer as _};
 
 #[inline]
-fn length<T: 'static + de::StdError>(
-    title: Title,
-    offset: usize,
-) -> Result<Option<usize>, Error<T>> {
+fn length<T: core::fmt::Debug>(title: Title, offset: usize) -> Result<Option<usize>, Error<T>> {
     Ok(title
         .try_into()
         .map_err(|_| Error::semantic(offset, "unsuppored length"))?)
@@ -74,7 +70,7 @@ struct Deserializer<T>(T);
 
 impl<'a, T: Read> Deserializer<&'a mut Io<T>>
 where
-    T::Error: 'static + de::StdError,
+    T::Error: core::fmt::Debug,
 {
     #[inline]
     fn chunked(
@@ -164,7 +160,7 @@ where
 
 impl<'a, 'de, T: Read> de::Deserializer<'de> for Deserializer<&'a mut Io<T>>
 where
-    T::Error: 'static + de::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Error = Error<T::Error>;
 
@@ -465,7 +461,7 @@ where
 
 impl<'a, T: Read> Deserializer<(&'a mut Io<T>, Option<usize>, usize)>
 where
-    T::Error: 'static + de::StdError,
+    T::Error: core::fmt::Debug,
 {
     fn new(io: &'a mut Io<T>, major: Major, msg: &str) -> Result<Self, Error<T::Error>> {
         let (title, offset) = io.pull(true)?;
@@ -480,7 +476,7 @@ where
 
 impl<'a, 'de, T: Read> de::SeqAccess<'de> for Deserializer<(&'a mut Io<T>, Option<usize>, usize)>
 where
-    T::Error: 'static + de::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Error = Error<T::Error>;
 
@@ -509,7 +505,7 @@ where
 
 impl<'a, 'de, T: Read> de::MapAccess<'de> for Deserializer<(&'a mut Io<T>, Option<usize>, usize)>
 where
-    T::Error: 'static + de::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Error = Error<T::Error>;
 
@@ -546,7 +542,7 @@ where
 
 impl<'a, 'de, T: Read> de::EnumAccess<'de> for Deserializer<&'a mut Io<T>>
 where
-    T::Error: 'static + de::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Error = Error<T::Error>;
     type Variant = Self;
@@ -563,7 +559,7 @@ where
 
 impl<'a, 'de, T: Read> de::VariantAccess<'de> for Deserializer<&'a mut Io<T>>
 where
-    T::Error: 'static + de::StdError,
+    T::Error: core::fmt::Debug,
 {
     type Error = Error<T::Error>;
 
@@ -603,7 +599,7 @@ where
 #[inline]
 pub fn from_reader<'de, T: de::Deserialize<'de>, R: Read>(reader: R) -> Result<T, Error<R::Error>>
 where
-    R::Error: 'static + de::StdError,
+    R::Error: core::fmt::Debug,
 {
     let mut io = reader.into();
     T::deserialize(Deserializer(&mut io))

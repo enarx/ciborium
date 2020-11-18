@@ -48,16 +48,9 @@ impl<T: Debug> Display for Error<T> {
     }
 }
 
-impl<T: 'static + StdError> StdError for Error<T> {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            Self::Io(e) => Some(e),
-            _ => None,
-        }
-    }
-}
+impl<T: Debug> StdError for Error<T> {}
 
-impl<T: 'static + StdError> DeError for Error<T> {
+impl<T: Debug> DeError for Error<T> {
     #[inline]
     fn custom<U: Display>(msg: U) -> Self {
         Self::Semantic(None, msg.to_string())

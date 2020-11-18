@@ -22,6 +22,8 @@
 
 extern crate alloc;
 
+mod io;
+
 pub mod basic;
 
 #[cfg(feature = "serde")]
