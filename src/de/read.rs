@@ -10,7 +10,7 @@
 /// You can of course implement this for your own types like always.
 pub trait Read {
     /// The error type
-    type Error: 'static + core::fmt::Debug + serde::de::StdError;
+    type Error;
 
     /// Reads up to `data.len()` bytes, returning the number of bytes read
     fn read(&mut self, data: &mut [u8]) -> Result<usize, Self::Error>;

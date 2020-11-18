@@ -10,7 +10,7 @@
 /// You can of course implement this for your own types like always.
 pub trait Write {
     /// The error type
-    type Error: 'static + core::fmt::Debug + serde::ser::StdError;
+    type Error;
 
     /// Writes up to `data.len()` bytes, returning the number of bytes written
     fn write(&mut self, data: &[u8]) -> Result<usize, Self::Error>;

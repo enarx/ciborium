@@ -7,7 +7,7 @@ use serde::ser::{Error as SerError, StdError};
 
 /// An error occurred during serialization
 #[derive(Debug)]
-pub enum Error<T: 'static + StdError> {
+pub enum Error<T> {
     /// An error occurred while writing bytes
     ///
     /// Contains the underlying error reaturned while writing.
@@ -19,14 +19,14 @@ pub enum Error<T: 'static + StdError> {
     Value(String),
 }
 
-impl<T: 'static + StdError> From<T> for Error<T> {
+impl<T> From<T> for Error<T> {
     #[inline]
     fn from(value: T) -> Self {
         Error::Io(value)
     }
 }
 
-impl<T: 'static + StdError + Debug> Display for Error<T> {
+impl<T: Debug> Display for Error<T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "{:?}", self)

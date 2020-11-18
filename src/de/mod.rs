@@ -72,7 +72,10 @@ impl<T: Read> Io<T> {
 
 struct Deserializer<T>(T);
 
-impl<'a, T: Read> Deserializer<&'a mut Io<T>> {
+impl<'a, T: Read> Deserializer<&'a mut Io<T>>
+where
+    T::Error: 'static + de::StdError,
+{
     #[inline]
     fn chunked(
         &mut self,
@@ -159,7 +162,10 @@ impl<'a, T: Read> Deserializer<&'a mut Io<T>> {
     }
 }
 
-impl<'a, 'de, T: Read> de::Deserializer<'de> for Deserializer<&'a mut Io<T>> {
+impl<'a, 'de, T: Read> de::Deserializer<'de> for Deserializer<&'a mut Io<T>>
+where
+    T::Error: 'static + de::StdError,
+{
     type Error = Error<T::Error>;
 
     #[inline]
@@ -457,7 +463,10 @@ impl<'a, 'de, T: Read> de::Deserializer<'de> for Deserializer<&'a mut Io<T>> {
     }
 }
 
-impl<'a, T: Read> Deserializer<(&'a mut Io<T>, Option<usize>, usize)> {
+impl<'a, T: Read> Deserializer<(&'a mut Io<T>, Option<usize>, usize)>
+where
+    T::Error: 'static + de::StdError,
+{
     fn new(io: &'a mut Io<T>, major: Major, msg: &str) -> Result<Self, Error<T::Error>> {
         let (title, offset) = io.pull(true)?;
 
@@ -469,7 +478,10 @@ impl<'a, T: Read> Deserializer<(&'a mut Io<T>, Option<usize>, usize)> {
     }
 }
 
-impl<'a, 'de, T: Read> de::SeqAccess<'de> for Deserializer<(&'a mut Io<T>, Option<usize>, usize)> {
+impl<'a, 'de, T: Read> de::SeqAccess<'de> for Deserializer<(&'a mut Io<T>, Option<usize>, usize)>
+where
+    T::Error: 'static + de::StdError,
+{
     type Error = Error<T::Error>;
 
     #[inline]
@@ -495,7 +507,10 @@ impl<'a, 'de, T: Read> de::SeqAccess<'de> for Deserializer<(&'a mut Io<T>, Optio
     }
 }
 
-impl<'a, 'de, T: Read> de::MapAccess<'de> for Deserializer<(&'a mut Io<T>, Option<usize>, usize)> {
+impl<'a, 'de, T: Read> de::MapAccess<'de> for Deserializer<(&'a mut Io<T>, Option<usize>, usize)>
+where
+    T::Error: 'static + de::StdError,
+{
     type Error = Error<T::Error>;
 
     #[inline]
@@ -529,7 +544,10 @@ impl<'a, 'de, T: Read> de::MapAccess<'de> for Deserializer<(&'a mut Io<T>, Optio
     }
 }
 
-impl<'a, 'de, T: Read> de::EnumAccess<'de> for Deserializer<&'a mut Io<T>> {
+impl<'a, 'de, T: Read> de::EnumAccess<'de> for Deserializer<&'a mut Io<T>>
+where
+    T::Error: 'static + de::StdError,
+{
     type Error = Error<T::Error>;
     type Variant = Self;
 
@@ -543,7 +561,10 @@ impl<'a, 'de, T: Read> de::EnumAccess<'de> for Deserializer<&'a mut Io<T>> {
     }
 }
 
-impl<'a, 'de, T: Read> de::VariantAccess<'de> for Deserializer<&'a mut Io<T>> {
+impl<'a, 'de, T: Read> de::VariantAccess<'de> for Deserializer<&'a mut Io<T>>
+where
+    T::Error: 'static + de::StdError,
+{
     type Error = Error<T::Error>;
 
     #[inline]
@@ -580,7 +601,10 @@ impl<'a, 'de, T: Read> de::VariantAccess<'de> for Deserializer<&'a mut Io<T>> {
 
 /// Deserializes as CBOR from a type with `impl ciborium::serde::de::Read`
 #[inline]
-pub fn from_reader<'de, T: de::Deserialize<'de>, R: Read>(reader: R) -> Result<T, Error<R::Error>> {
+pub fn from_reader<'de, T: de::Deserialize<'de>, R: Read>(reader: R) -> Result<T, Error<R::Error>>
+where
+    R::Error: 'static + de::StdError,
+{
     let mut io = reader.into();
     T::deserialize(Deserializer(&mut io))
 }

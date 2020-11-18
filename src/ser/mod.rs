@@ -12,7 +12,7 @@ use write::Write;
 use alloc::string::ToString;
 use core::convert::TryFrom;
 
-use serde::Serialize;
+use serde::{ser, Serialize as _};
 
 struct Encoder<T: Write>(T);
 
@@ -33,7 +33,10 @@ impl<T: Write> From<T> for Encoder<T> {
     }
 }
 
-impl<'a, T: Write> serde::ser::Serializer for &'a mut Encoder<T> {
+impl<'a, T: Write> ser::Serializer for &'a mut Encoder<T>
+where
+    T::Error: 'static + ser::StdError,
+{
     type Ok = ();
     type Error = Error<T::Error>;
 
@@ -153,7 +156,7 @@ impl<'a, T: Write> serde::ser::Serializer for &'a mut Encoder<T> {
     }
 
     #[inline]
-    fn serialize_some<U: ?Sized + Serialize>(self, value: &U) -> Result<(), Self::Error> {
+    fn serialize_some<U: ?Sized + ser::Serialize>(self, value: &U) -> Result<(), Self::Error> {
         value.serialize(self)
     }
 
@@ -180,7 +183,7 @@ impl<'a, T: Write> serde::ser::Serializer for &'a mut Encoder<T> {
     }
 
     #[inline]
-    fn serialize_newtype_struct<U: ?Sized + Serialize>(
+    fn serialize_newtype_struct<U: ?Sized + ser::Serialize>(
         self,
         _name: &'static str,
         value: &U,
@@ -189,7 +192,7 @@ impl<'a, T: Write> serde::ser::Serializer for &'a mut Encoder<T> {
     }
 
     #[inline]
-    fn serialize_newtype_variant<U: ?Sized + Serialize>(
+    fn serialize_newtype_variant<U: ?Sized + ser::Serialize>(
         self,
         _name: &'static str,
         _index: u32,
@@ -304,77 +307,110 @@ struct CollectionEncoder<'a, T: Write> {
     ending: bool,
 }
 
-impl<'a, T: Write> serde::ser::SerializeSeq for CollectionEncoder<'a, T> {
+impl<'a, T: Write> ser::SerializeSeq for CollectionEncoder<'a, T>
+where
+    T::Error: 'static + ser::StdError,
+{
     type Ok = ();
     type Error = Error<T::Error>;
 
     #[inline]
-    fn serialize_element<U: ?Sized + Serialize>(&mut self, value: &U) -> Result<(), Self::Error> {
+    fn serialize_element<U: ?Sized + ser::Serialize>(
+        &mut self,
+        value: &U,
+    ) -> Result<(), Self::Error> {
         value.serialize(&mut *self.encoder)
     }
 
     end!();
 }
 
-impl<'a, T: Write> serde::ser::SerializeTuple for CollectionEncoder<'a, T> {
+impl<'a, T: Write> ser::SerializeTuple for CollectionEncoder<'a, T>
+where
+    T::Error: 'static + ser::StdError,
+{
     type Ok = ();
     type Error = Error<T::Error>;
 
     #[inline]
-    fn serialize_element<U: ?Sized + Serialize>(&mut self, value: &U) -> Result<(), Self::Error> {
+    fn serialize_element<U: ?Sized + ser::Serialize>(
+        &mut self,
+        value: &U,
+    ) -> Result<(), Self::Error> {
         value.serialize(&mut *self.encoder)
     }
 
     end!();
 }
 
-impl<'a, T: Write> serde::ser::SerializeTupleStruct for CollectionEncoder<'a, T> {
+impl<'a, T: Write> ser::SerializeTupleStruct for CollectionEncoder<'a, T>
+where
+    T::Error: 'static + ser::StdError,
+{
     type Ok = ();
     type Error = Error<T::Error>;
 
     #[inline]
-    fn serialize_field<U: ?Sized + Serialize>(&mut self, value: &U) -> Result<(), Self::Error> {
+    fn serialize_field<U: ?Sized + ser::Serialize>(
+        &mut self,
+        value: &U,
+    ) -> Result<(), Self::Error> {
         value.serialize(&mut *self.encoder)
     }
 
     end!();
 }
 
-impl<'a, T: Write> serde::ser::SerializeTupleVariant for CollectionEncoder<'a, T> {
+impl<'a, T: Write> ser::SerializeTupleVariant for CollectionEncoder<'a, T>
+where
+    T::Error: 'static + ser::StdError,
+{
     type Ok = ();
     type Error = Error<T::Error>;
 
     #[inline]
-    fn serialize_field<U: ?Sized + Serialize>(&mut self, value: &U) -> Result<(), Self::Error> {
+    fn serialize_field<U: ?Sized + ser::Serialize>(
+        &mut self,
+        value: &U,
+    ) -> Result<(), Self::Error> {
         value.serialize(&mut *self.encoder)
     }
 
     end!();
 }
 
-impl<'a, T: Write> serde::ser::SerializeMap for CollectionEncoder<'a, T> {
+impl<'a, T: Write> ser::SerializeMap for CollectionEncoder<'a, T>
+where
+    T::Error: 'static + ser::StdError,
+{
     type Ok = ();
     type Error = Error<T::Error>;
 
     #[inline]
-    fn serialize_key<U: ?Sized + Serialize>(&mut self, key: &U) -> Result<(), Self::Error> {
+    fn serialize_key<U: ?Sized + ser::Serialize>(&mut self, key: &U) -> Result<(), Self::Error> {
         key.serialize(&mut *self.encoder)
     }
 
     #[inline]
-    fn serialize_value<U: ?Sized + Serialize>(&mut self, value: &U) -> Result<(), Self::Error> {
+    fn serialize_value<U: ?Sized + ser::Serialize>(
+        &mut self,
+        value: &U,
+    ) -> Result<(), Self::Error> {
         value.serialize(&mut *self.encoder)
     }
 
     end!();
 }
 
-impl<'a, T: Write> serde::ser::SerializeStruct for CollectionEncoder<'a, T> {
+impl<'a, T: Write> ser::SerializeStruct for CollectionEncoder<'a, T>
+where
+    T::Error: 'static + ser::StdError,
+{
     type Ok = ();
     type Error = Error<T::Error>;
 
     #[inline]
-    fn serialize_field<U: ?Sized + Serialize>(
+    fn serialize_field<U: ?Sized + ser::Serialize>(
         &mut self,
         key: &'static str,
         value: &U,
@@ -387,12 +423,15 @@ impl<'a, T: Write> serde::ser::SerializeStruct for CollectionEncoder<'a, T> {
     end!();
 }
 
-impl<'a, T: Write> serde::ser::SerializeStructVariant for CollectionEncoder<'a, T> {
+impl<'a, T: Write> ser::SerializeStructVariant for CollectionEncoder<'a, T>
+where
+    T::Error: 'static + ser::StdError,
+{
     type Ok = ();
     type Error = Error<T::Error>;
 
     #[inline]
-    fn serialize_field<U: ?Sized + Serialize>(
+    fn serialize_field<U: ?Sized + ser::Serialize>(
         &mut self,
         key: &'static str,
         value: &U,
@@ -404,12 +443,15 @@ impl<'a, T: Write> serde::ser::SerializeStructVariant for CollectionEncoder<'a, 
     end!();
 }
 
-/// Serializes as CBOR into a type with `impl ciborium::serde::ser::Write`
+/// Serializes as CBOR into a type with `impl ciborium::ser::Write`
 #[inline]
-pub fn into_writer<T: ?Sized + Serialize, W: Write>(
+pub fn into_writer<T: ?Sized + ser::Serialize, W: Write>(
     value: &T,
     writer: W,
-) -> Result<(), Error<W::Error>> {
+) -> Result<(), Error<W::Error>>
+where
+    W::Error: 'static + ser::StdError,
+{
     let mut encoder = Encoder::from(writer);
     value.serialize(&mut encoder)?;
     Ok(encoder.0.flush()?)

@@ -7,7 +7,7 @@ use serde::de::{Error as DeError, StdError};
 
 /// An error occurred during deserialization
 #[derive(Debug)]
-pub enum Error<T: 'static + StdError> {
+pub enum Error<T> {
     /// An error occurred while reading bytes
     ///
     /// Contains the underlying error reaturned while reading.
@@ -26,7 +26,7 @@ pub enum Error<T: 'static + StdError> {
     Semantic(Option<usize>, String),
 }
 
-impl<T: 'static + StdError> Error<T> {
+impl<T> Error<T> {
     /// A helper method for composing a semantic error
     #[inline]
     pub fn semantic(offset: impl Into<Option<usize>>, msg: impl Into<String>) -> Self {
@@ -34,14 +34,14 @@ impl<T: 'static + StdError> Error<T> {
     }
 }
 
-impl<T: 'static + StdError> From<T> for Error<T> {
+impl<T> From<T> for Error<T> {
     #[inline]
     fn from(value: T) -> Self {
         Error::Io(value)
     }
 }
 
-impl<T: 'static + StdError> Display for Error<T> {
+impl<T: Debug> Display for Error<T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "{:?}", self)
