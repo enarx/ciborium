@@ -2,5 +2,4 @@
 members = [
     "ciborium-basic",
     "ciborium-serde",
-    "ciborium-tokio",
 ]
