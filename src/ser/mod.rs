@@ -7,7 +7,7 @@ mod write;
 
 use crate::basic::*;
 pub use error::Error;
-pub use write::Write;
+use write::Write;
 
 use alloc::string::ToString;
 use core::convert::TryFrom;

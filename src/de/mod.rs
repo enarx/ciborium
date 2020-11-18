@@ -7,7 +7,7 @@ mod read;
 
 use crate::basic::*;
 pub use error::Error;
-pub use read::Read;
+use read::Read;
 
 use alloc::{string::String, vec::Vec};
 use core::convert::{TryFrom, TryInto};
