@@ -27,13 +27,13 @@ macro_rules! mkfrom {
             }
 
             impl TryFrom<$t> for Immediate {
-                type Error = Invalid;
+                type Error = InvalidError;
 
                 #[inline]
                 fn try_from(value: $t) -> Result<Self, Self::Error> {
                     match value {
                         x @ 0..=23 => Ok(Self(x as u8)),
-                        _ => Err(Invalid(()))
+                        _ => Err(InvalidError(()))
                     }
                 }
             }

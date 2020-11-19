@@ -54,7 +54,7 @@ pub use tit::*;
 
 /// Validation encountered an invalid value
 #[derive(Debug)]
-pub struct Invalid(());
+pub struct InvalidError(());
 
 /// An error that occurred during decoding
 #[derive(Debug)]

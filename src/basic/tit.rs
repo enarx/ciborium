@@ -39,47 +39,47 @@ impl Title {
 }
 
 impl TryFrom<Title> for f32 {
-    type Error = Invalid;
+    type Error = InvalidError;
 
     #[inline]
     #[allow(clippy::float_cmp)]
     fn try_from(value: Title) -> Result<Self, Self::Error> {
         match value.0 {
             Major::Other => f32::try_from(value.1),
-            _ => Err(Invalid(())),
+            _ => Err(InvalidError(())),
         }
     }
 }
 
 impl TryFrom<Title> for f64 {
-    type Error = Invalid;
+    type Error = InvalidError;
 
     #[inline]
     fn try_from(value: Title) -> Result<Self, Self::Error> {
         match value.0 {
             Major::Other => f64::try_from(value.1),
-            _ => Err(Invalid(())),
+            _ => Err(InvalidError(())),
         }
     }
 }
 
 impl TryFrom<Title> for i128 {
-    type Error = Invalid;
+    type Error = InvalidError;
 
     #[inline]
     fn try_from(value: Title) -> Result<Self, Self::Error> {
-        let x = Option::<u64>::from(value.1).ok_or(Invalid(()))? as i128;
+        let x = Option::<u64>::from(value.1).ok_or(InvalidError(()))? as i128;
 
         match value.0 {
             Major::Positive => Ok(x),
             Major::Negative => Ok(x ^ !0),
-            _ => Err(Invalid(())),
+            _ => Err(InvalidError(())),
         }
     }
 }
 
 impl TryFrom<Title> for Option<usize> {
-    type Error = Invalid;
+    type Error = InvalidError;
 
     #[inline]
     fn try_from(value: Title) -> Result<Self, Self::Error> {
@@ -87,9 +87,9 @@ impl TryFrom<Title> for Option<usize> {
             Major::Bytes | Major::Text | Major::Array | Major::Map => Option::<u64>::from(value.1)
                 .map(usize::try_from)
                 .transpose()
-                .or(Err(Invalid(()))),
+                .or(Err(InvalidError(()))),
 
-            _ => Err(Invalid(())),
+            _ => Err(InvalidError(())),
         }
     }
 }
@@ -134,11 +134,11 @@ impl From<u64> for Title {
 }
 
 impl TryFrom<u128> for Title {
-    type Error = Invalid;
+    type Error = InvalidError;
 
     #[inline]
     fn try_from(value: u128) -> Result<Self, Self::Error> {
-        let x = u64::try_from(value).map_err(|_| Invalid(()))?;
+        let x = u64::try_from(value).map_err(|_| InvalidError(()))?;
         Ok(Self(Major::Positive, Minor::from(x)))
     }
 }
@@ -192,7 +192,7 @@ impl From<i64> for Title {
 }
 
 impl TryFrom<i128> for Title {
-    type Error = Invalid;
+    type Error = InvalidError;
 
     #[inline]
     fn try_from(value: i128) -> Result<Self, Self::Error> {
@@ -201,7 +201,7 @@ impl TryFrom<i128> for Title {
             true => (Major::Negative, u64::try_from(value ^ !0)),
         };
 
-        Ok(Self(major, value.map_err(|_| Invalid(()))?.into()))
+        Ok(Self(major, value.map_err(|_| InvalidError(()))?.into()))
     }
 }
 

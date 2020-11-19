@@ -88,7 +88,7 @@ impl From<Minor> for Option<u64> {
 }
 
 impl TryFrom<Minor> for f32 {
-    type Error = Invalid;
+    type Error = InvalidError;
 
     #[inline]
     #[allow(clippy::float_cmp)]
@@ -99,13 +99,13 @@ impl TryFrom<Minor> for f32 {
         if n32 as f64 == n64 || (n32.is_nan() && n64.is_nan()) {
             Ok(n32)
         } else {
-            Err(Invalid(()))
+            Err(InvalidError(()))
         }
     }
 }
 
 impl TryFrom<Minor> for f64 {
-    type Error = Invalid;
+    type Error = InvalidError;
 
     #[inline]
     fn try_from(value: Minor) -> Result<Self, Self::Error> {
@@ -113,7 +113,7 @@ impl TryFrom<Minor> for f64 {
             Minor::Subsequent2(x) => f16::from_be_bytes(x).into(),
             Minor::Subsequent4(x) => f32::from_be_bytes(x).into(),
             Minor::Subsequent8(x) => f64::from_be_bytes(x),
-            _ => return Err(Invalid(())),
+            _ => return Err(InvalidError(())),
         })
     }
 }
