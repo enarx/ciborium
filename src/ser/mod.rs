@@ -18,10 +18,7 @@ struct Encoder<T: Write>(T);
 impl<T: Write> Encoder<T> {
     #[inline]
     fn save(&mut self, title: impl Into<Title>) -> Result<(), Error<T::Error>> {
-        let title = title.into();
-        let prefix = Prefix::from(title);
-        self.0.write_all(prefix.as_ref())?;
-        Ok(self.0.write_all(title.1.as_ref())?)
+        Ok(title.into().encode(&mut self.0)?)
     }
 }
 

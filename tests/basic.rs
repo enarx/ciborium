@@ -2,8 +2,7 @@
 
 use ciborium::basic::*;
 
-use std::convert::{AsMut, TryFrom};
-use std::io::{Read, Write};
+use core::convert::TryFrom;
 
 use rstest::rstest;
 
@@ -105,16 +104,9 @@ fn test(title: Title, bytes: &str) {
 
     // encode
     let mut buffer = Vec::new();
-    let prefix = Prefix::from(title);
-    buffer.write_all(prefix.as_ref()).unwrap();
-    buffer.write_all(title.1.as_ref()).unwrap();
+    title.encode(&mut buffer).unwrap();
     assert_eq!(bytes, &buffer[..]);
 
     // decode
-    let mut reader = &bytes[..];
-    let mut prefix = Prefix::default();
-    reader.read_exact(prefix.as_mut()).unwrap();
-    let mut value = Title::try_from(prefix).unwrap();
-    reader.read_exact(value.1.as_mut()).unwrap();
-    assert_eq!(title, value);
+    assert_eq!(title, Title::decode(&mut &bytes[..]).unwrap());
 }

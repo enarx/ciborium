@@ -7,19 +7,8 @@
 //! wire. This module **does not** parse the CBOR item `Suffix`, which
 //! typically contains raw bytes, a UTF-8 string or other CBOR items.
 //!
-//! To parse a CBOR item you basically need to do the following:
-//!
-//! 1. Create a default `Prefix` object.
-//! 2. Read data into the `Prefix` object (see `AsMut<[u8]>`).
-//! 3. Convert the `Prefix` into a `Title`.
-//! 4. Read data into the `Minor` of the `Title` (see `AsMut<[u8]>`).
-//!
-//! Encoding a CBOR item is likewise simple:
-//!
-//! 1. Construct a `Title` object containing the data you want.
-//! 2. Create a `Prefix` from the `Title`.
-//! 3. Write the `Prefix` (see `AsRef<[u8]>`).
-//! 4. Write the `Minor` of the `Title` (see `AsRef<[u8]>`).
+//! The most important type in this crate is `Title`, which is the locus
+//! for encoding and decoding.
 //!
 //! # Anatomy of a CBOR Item
 //!
@@ -56,15 +45,29 @@
 mod imm;
 mod maj;
 mod min;
-mod pre;
 mod tit;
 
 pub use imm::*;
 pub use maj::*;
 pub use min::*;
-pub use pre::*;
 pub use tit::*;
 
 /// Validation encountered an invalid value
 #[derive(Debug)]
 pub struct Invalid(());
+
+/// An error that occurred during decoding
+#[derive(Debug)]
+pub enum DecodeError<T> {
+    /// An error occurred reading bytes
+    Io(T),
+
+    /// An error occurred parsing bytes
+    Invalid,
+}
+
+impl<T> From<T> for DecodeError<T> {
+    fn from(value: T) -> Self {
+        Self::Io(value)
+    }
+}

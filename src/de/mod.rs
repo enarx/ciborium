@@ -50,17 +50,17 @@ impl<T: Read> Io<T> {
         }
 
         loop {
-            let offset = self.offset;
+            let item = match Title::decode(&mut self.reader) {
+                Err(DecodeError::Invalid) => return Err(Error::Syntax(self.offset)),
+                Err(DecodeError::Io(io)) => return Err(Error::Io(io)),
+                Ok(title) => (title, self.offset),
+            };
 
-            let mut prefix = Prefix::default();
-            self.reader.read_exact(prefix.as_mut())?;
+            self.offset += item.0.len();
 
-            let mut title = Title::try_from(prefix).map_err(|_| Error::Syntax(self.offset))?;
-            self.reader.read_exact(title.1.as_mut())?;
-
-            match &title {
+            match &item.0 {
                 Title(Major::Tag, _) if skip_tag => continue,
-                _ => return Ok((title, offset)),
+                _ => return Ok(item),
             }
         }
     }
