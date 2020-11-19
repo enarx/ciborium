@@ -2,8 +2,6 @@
 
 use alloc::vec::Vec;
 
-use serde::{de, ser};
-
 /// An abstract representation for bytes
 #[repr(transparent)]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -50,39 +48,5 @@ impl core::ops::Deref for Bytes {
 impl core::ops::DerefMut for Bytes {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-impl<'de> de::Deserialize<'de> for Bytes {
-    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct BytesVisitor;
-
-        impl<'de> de::Visitor<'de> for BytesVisitor {
-            type Value = Bytes;
-
-            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
-                formatter.write_str("bytes")
-            }
-
-            fn visit_bytes<E: de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
-                Ok(v.into())
-            }
-
-            fn visit_borrowed_bytes<E: de::Error>(self, v: &'de [u8]) -> Result<Self::Value, E> {
-                Ok(v.into())
-            }
-
-            fn visit_byte_buf<E: de::Error>(self, v: Vec<u8>) -> Result<Self::Value, E> {
-                Ok(v.into())
-            }
-        }
-
-        deserializer.deserialize_bytes(BytesVisitor)
-    }
-}
-
-impl ser::Serialize for Bytes {
-    fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_bytes(&self.0)
     }
 }

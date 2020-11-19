@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{Error, Integer, Value};
+use super::{Error, Integer, Value, Bytes};
 
 use alloc::{string::String, vec::Vec};
 use core::convert::TryFrom;
@@ -381,5 +381,33 @@ impl Value {
     #[inline]
     pub fn deserialized<'de, T: de::Deserialize<'de>>(&self) -> Result<T, Error> {
         T::deserialize(Deserializer(self))
+    }
+}
+
+impl<'de> de::Deserialize<'de> for Bytes {
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct BytesVisitor;
+
+        impl<'de> de::Visitor<'de> for BytesVisitor {
+            type Value = Bytes;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str("bytes")
+            }
+
+            fn visit_bytes<E: de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+                Ok(v.into())
+            }
+
+            fn visit_borrowed_bytes<E: de::Error>(self, v: &'de [u8]) -> Result<Self::Value, E> {
+                Ok(v.into())
+            }
+
+            fn visit_byte_buf<E: de::Error>(self, v: Vec<u8>) -> Result<Self::Value, E> {
+                Ok(v.into())
+            }
+        }
+
+        deserializer.deserialize_bytes(BytesVisitor)
     }
 }

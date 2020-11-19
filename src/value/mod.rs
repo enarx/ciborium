@@ -3,18 +3,26 @@
 //! A dynamic CBOR value
 
 mod bytes;
-mod de;
-mod error;
 mod float;
 mod integer;
+
+#[cfg(feature = "serde")]
+mod error;
+
+#[cfg(feature = "serde")]
+mod de;
+
+#[cfg(feature = "serde")]
 mod ser;
 
-use alloc::{string::String, vec::Vec};
+#[cfg(feature = "serde")]
+pub use error::Error;
 
 pub use bytes::Bytes;
-pub use error::Error;
 pub use float::{Float, TryFromFloatError};
 pub use integer::Integer;
+
+use alloc::{string::String, vec::Vec};
 
 /// A representation of a dynamic CBOR value that can handled dynamically
 #[non_exhaustive]

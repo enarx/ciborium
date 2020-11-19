@@ -25,15 +25,13 @@ extern crate alloc;
 mod io;
 
 pub mod basic;
+pub mod value;
 
 #[cfg(feature = "serde")]
 pub mod de;
 
 #[cfg(feature = "serde")]
 pub mod ser;
-
-#[cfg(feature = "serde")]
-pub mod value;
 
 /// Build a `Value` conveniently.
 ///

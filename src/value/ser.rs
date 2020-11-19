@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{Error, Value};
+use super::{Error, Value, Bytes};
 
 use alloc::{vec, vec::Vec};
 use core::convert::TryFrom;
@@ -385,5 +385,11 @@ impl Value {
     #[inline]
     pub fn serialized<T: ?Sized + ser::Serialize>(value: &T) -> Result<Self, Error> {
         value.serialize(Serializer(()))
+    }
+}
+
+impl ser::Serialize for Bytes {
+    fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(self.as_ref())
     }
 }
