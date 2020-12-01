@@ -6,6 +6,7 @@ mod error;
 
 use crate::basic::*;
 use crate::io::Read;
+use crate::value::Float;
 pub use error::Error;
 
 use alloc::{string::String, vec::Vec};
@@ -291,18 +292,21 @@ where
     #[allow(clippy::float_cmp)]
     fn deserialize_f32<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         let (title, offset) = self.0.pull(true)?;
-        let x = title
+        let x = Float::try_from(title)
+            .map_err(|_| Error::semantic(offset, "expected f32"))?
             .try_into()
             .map_err(|_| Error::semantic(offset, "expected f32"))?;
+
         visitor.visit_f32(x)
     }
 
     #[inline]
     fn deserialize_f64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         let (title, offset) = self.0.pull(true)?;
-        let x = title
-            .try_into()
-            .map_err(|_| Error::semantic(offset, "expected f64"))?;
+        let x = Float::try_from(title)
+            .map_err(|_| Error::semantic(offset, "expected f64"))?
+            .into();
+
         visitor.visit_f64(x)
     }
 

@@ -6,6 +6,7 @@ mod error;
 
 use crate::basic::*;
 use crate::io::Write;
+use crate::value::Float;
 pub use error::Error;
 
 use alloc::string::ToString;
@@ -144,12 +145,12 @@ where
 
     #[inline]
     fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
-        self.save(v)
+        self.save(Float::from(v))
     }
 
     #[inline]
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-        self.save(v)
+        self.save(Float::from(v))
     }
 
     #[inline]

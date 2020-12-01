@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use crate::value::Float;
 
 use core::convert::TryFrom;
 
@@ -19,28 +20,17 @@ impl Title {
     pub const TAG_BIGNEG: Self = Self(Major::Tag, Minor::Immediate(Immediate(3)));
 }
 
-impl TryFrom<Title> for f32 {
-    type Error = InvalidError;
-
-    #[inline]
-    #[allow(clippy::float_cmp)]
-    fn try_from(value: Title) -> Result<Self, Self::Error> {
-        match value.0 {
-            Major::Other => f32::try_from(value.1),
-            _ => Err(InvalidError(())),
-        }
-    }
-}
-
-impl TryFrom<Title> for f64 {
+impl TryFrom<Title> for Float {
     type Error = InvalidError;
 
     #[inline]
     fn try_from(value: Title) -> Result<Self, Self::Error> {
-        match value.0 {
-            Major::Other => f64::try_from(value.1),
-            _ => Err(InvalidError(())),
-        }
+        Ok(match (value.0, value.1) {
+            (Major::Other, Minor::Subsequent2(x)) => half::f16::from_be_bytes(x).into(),
+            (Major::Other, Minor::Subsequent4(x)) => f32::from_be_bytes(x).into(),
+            (Major::Other, Minor::Subsequent8(x)) => f64::from_be_bytes(x).into(),
+            _ => return Err(InvalidError(())),
+        })
     }
 }
 
@@ -186,17 +176,18 @@ impl TryFrom<i128> for Title {
     }
 }
 
-impl From<f32> for Title {
+impl From<Float> for Title {
     #[inline]
-    fn from(value: f32) -> Self {
-        Self(Major::Other, Minor::from(value as f64))
-    }
-}
+    fn from(value: Float) -> Self {
+        let minor = if let Ok(x) = half::f16::try_from(value) {
+            Minor::Subsequent2(x.to_be_bytes())
+        } else if let Ok(x) = f32::try_from(value) {
+            Minor::Subsequent4(x.to_be_bytes())
+        } else {
+            Minor::Subsequent8(f64::from(value).to_be_bytes())
+        };
 
-impl From<f64> for Title {
-    #[inline]
-    fn from(value: f64) -> Self {
-        Self(Major::Other, Minor::from(value))
+        Self(Major::Other, minor)
     }
 }
 

@@ -4,6 +4,8 @@ use core::cmp::{Ord, Ordering, PartialOrd};
 use core::convert::TryFrom;
 use core::hash::{Hash, Hasher};
 
+use half::f16;
+
 /// An error that occurred while converting between floating point values
 #[derive(Debug)]
 pub struct TryFromFloatError(());
@@ -11,6 +13,13 @@ pub struct TryFromFloatError(());
 /// An abstract floating point value
 #[derive(Copy, Clone, Debug)]
 pub struct Float(f64);
+
+impl From<f16> for Float {
+    #[inline]
+    fn from(value: f16) -> Self {
+        Self(value.into())
+    }
+}
 
 impl From<f32> for Float {
     #[inline]
@@ -23,6 +32,21 @@ impl From<f64> for Float {
     #[inline]
     fn from(value: f64) -> Self {
         Self(value)
+    }
+}
+
+impl TryFrom<Float> for f16 {
+    type Error = TryFromFloatError;
+
+    #[inline]
+    fn try_from(value: Float) -> Result<Self, Self::Error> {
+        let n16 = f16::from_f64(value.0);
+
+        if n16.to_f64().to_bits() == value.0.to_bits() {
+            return Ok(n16);
+        }
+
+        Err(TryFromFloatError(()))
     }
 }
 
