@@ -384,12 +384,12 @@ impl Value {
     }
 }
 
-impl<'de> de::Deserialize<'de> for Bytes {
+impl<'de> de::Deserialize<'de> for Bytes<Vec<u8>> {
     fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct BytesVisitor;
 
         impl<'de> de::Visitor<'de> for BytesVisitor {
-            type Value = Bytes;
+            type Value = Bytes<Vec<u8>>;
 
             fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
                 formatter.write_str("bytes")

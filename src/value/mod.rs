@@ -25,7 +25,7 @@ pub enum Value {
     Integer(Integer),
 
     /// Bytes
-    Bytes(Bytes),
+    Bytes(Bytes<Vec<u8>>),
 
     /// A float
     Float(Float),
@@ -72,7 +72,8 @@ implfrom! {
     Integer(u8),
     Integer(i8),
 
-    Bytes(Bytes),
+    Bytes(Bytes<Vec<u8>>),
+    Bytes(Bytes<&[u8]>),
     Bytes(Vec<u8>),
     Bytes(&[u8]),
 

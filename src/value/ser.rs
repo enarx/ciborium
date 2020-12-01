@@ -388,7 +388,7 @@ impl Value {
     }
 }
 
-impl ser::Serialize for Bytes {
+impl<T: AsRef<[u8]>> ser::Serialize for Bytes<T> {
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_bytes(self.as_ref())
     }
