@@ -150,6 +150,20 @@ where
     }
 
     #[inline]
+    fn float<N: TryFrom<Float>>(&mut self, msg: &str) -> Result<N, Error<T::Error>> {
+        let (title, offset) = self.0.pull(true)?;
+
+        let float = match (title.0, title.1) {
+            (Major::Other, Minor::Subsequent2(x)) => half::f16::from_be_bytes(x).into(),
+            (Major::Other, Minor::Subsequent4(x)) => f32::from_be_bytes(x).into(),
+            (Major::Other, Minor::Subsequent8(x)) => f64::from_be_bytes(x).into(),
+            _ => return Err(Error::semantic(offset, msg)),
+        };
+
+        N::try_from(float).map_err(|_| Error::semantic(offset, msg))
+    }
+
+    #[inline]
     fn integer<N: TryFrom<u128> + TryFrom<i128>>(
         &mut self,
         msg: &str,
@@ -174,7 +188,15 @@ where
                 raw as i128 ^ !0
             }
 
-            _ => i128::try_from(title).map_err(|_| Error::semantic(offset, msg))?,
+            title => {
+                let x = Option::<u64>::from(title.1).ok_or(Error::semantic(offset, msg))?;
+
+                match title.0 {
+                    Major::Positive => x as i128,
+                    Major::Negative => x as i128 ^ !0,
+                    _ => return Err(Error::semantic(offset, msg)),
+                }
+            }
         };
 
         Ok(signed
@@ -291,24 +313,13 @@ where
 
     #[inline]
     #[allow(clippy::float_cmp)]
-    fn deserialize_f32<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let (title, offset) = self.0.pull(true)?;
-        let x = Float::try_from(title)
-            .map_err(|_| Error::semantic(offset, "expected f32"))?
-            .try_into()
-            .map_err(|_| Error::semantic(offset, "expected f32"))?;
-
-        visitor.visit_f32(x)
+    fn deserialize_f32<V: de::Visitor<'de>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_f32(self.float("expected f32")?)
     }
 
     #[inline]
-    fn deserialize_f64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let (title, offset) = self.0.pull(true)?;
-        let x = Float::try_from(title)
-            .map_err(|_| Error::semantic(offset, "expected f64"))?
-            .into();
-
-        visitor.visit_f64(x)
+    fn deserialize_f64<V: de::Visitor<'de>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_f64(self.float("expected f64")?)
     }
 
     #[inline]
