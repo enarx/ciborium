@@ -65,21 +65,6 @@ impl TryFrom<Title> for Option<usize> {
     }
 }
 
-impl From<Float> for Title {
-    #[inline]
-    fn from(value: Float) -> Self {
-        let minor = if let Ok(x) = half::f16::try_from(value) {
-            Minor::Subsequent2(x.to_be_bytes())
-        } else if let Ok(x) = f32::try_from(value) {
-            Minor::Subsequent4(x.to_be_bytes())
-        } else {
-            Minor::Subsequent8(f64::from(value).to_be_bytes())
-        };
-
-        Self(Major::Other, minor)
-    }
-}
-
 impl Title {
     #[inline]
     #[cfg(any(target_pointer_width = "32", target_pointer_width = "64",))]

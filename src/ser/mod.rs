@@ -156,12 +156,22 @@ where
 
     #[inline]
     fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
-        self.save(Float::from(v))
+        self.serialize_f64(v.into())
     }
 
     #[inline]
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-        self.save(Float::from(v))
+        let v = Float::from(v);
+
+        let minor = if let Ok(x) = half::f16::try_from(v) {
+            Minor::Subsequent2(x.to_be_bytes())
+        } else if let Ok(x) = f32::try_from(v) {
+            Minor::Subsequent4(x.to_be_bytes())
+        } else {
+            Minor::Subsequent8(f64::from(v).to_be_bytes())
+        };
+
+        self.save(Title(Major::Other, minor))
     }
 
     #[inline]
