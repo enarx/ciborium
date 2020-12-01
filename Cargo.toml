@@ -22,7 +22,7 @@ is-it-maintained-open-issues = { repository = "enarx/ciborium" }
 
 
 [dependencies]
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 half = "1.6"
 
 [dev-dependencies]

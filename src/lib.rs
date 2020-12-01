@@ -2,18 +2,14 @@
 
 //! Welcome to Ciborium!
 //!
-//! Ciborium contains utilities for working with CBOR types. This includes:
+//! Ciborium contains CBOR serialization and deserialization implementations for serde.
 //!
-//!   * Basic parsing (see `basic` module)
-//!   * Serde serialization/deserialization (see `serde` module)
-//!   * Tokio frame codec for [CBOR sequences](https://tools.ietf.org/html/rfc8742)
-//!     (see `tokio` module)
+//! # Quick Start
 //!
-//! Ciborium has the following feature flags:
+//! You're probably looking for [de::from_reader](de/fn.from_reader.html) and
+//! [ser::into_writer](ser/fn.into_writer.html), which are the main functions.
 //!
-//!   * `serde` - enables limited `serde` support (i.e. `no_std`)
-//!   * `std`   - enables complete `serde` support (implies `serde` flag)
-//!   * `tokio` - enables `tokio` support (implies `std` flag)
+//! For dynamic CBOR value creation/inspection, see [value::Value](value/enum.Value.html).
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(clippy::all)]
@@ -26,11 +22,7 @@ mod io;
 
 pub mod basic;
 pub mod value;
-
-#[cfg(feature = "serde")]
 pub mod de;
-
-#[cfg(feature = "serde")]
 pub mod ser;
 
 /// Build a `Value` conveniently.
@@ -51,7 +43,6 @@ pub mod ser;
 /// }).unwrap();
 /// ```
 #[macro_export]
-#[cfg(feature = "serde")]
 macro_rules! cbor {
     (@map {$($key:expr => $val:expr),*} $(,)?) => {{
         $crate::value::Value::Map(vec![

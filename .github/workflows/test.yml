@@ -24,7 +24,6 @@ jobs:
           - nightly
         features:
           -
-          - serde
           - std
         profile:
           - {name: debug}

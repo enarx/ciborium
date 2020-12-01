@@ -6,18 +6,11 @@ mod bytes;
 mod float;
 mod integer;
 
-#[cfg(feature = "serde")]
 mod error;
-
-#[cfg(feature = "serde")]
 mod de;
-
-#[cfg(feature = "serde")]
 mod ser;
 
-#[cfg(feature = "serde")]
 pub use error::Error;
-
 pub use bytes::Bytes;
 pub use float::{Float, TryFromFloatError};
 pub use integer::Integer;
