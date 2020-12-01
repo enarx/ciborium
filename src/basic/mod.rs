@@ -54,15 +54,3 @@ pub use tit::*;
 
 #[derive(Debug)]
 pub struct InvalidError(());
-
-#[derive(Debug)]
-pub enum DecodeError<T> {
-    Io(T),
-    Invalid,
-}
-
-impl<T> From<T> for DecodeError<T> {
-    fn from(value: T) -> Self {
-        Self::Io(value)
-    }
-}

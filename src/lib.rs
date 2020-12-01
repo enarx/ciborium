@@ -18,12 +18,12 @@
 
 extern crate alloc;
 
-mod io;
 mod basic;
+mod io;
 
-pub mod value;
 pub mod de;
 pub mod ser;
+pub mod value;
 
 /// Build a `Value` conveniently.
 ///

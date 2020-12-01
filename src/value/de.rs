@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{Error, Integer, Value, Bytes};
+use super::{Bytes, Error, Integer, Value};
 
 use alloc::{string::String, vec::Vec};
 use core::convert::TryFrom;

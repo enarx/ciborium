@@ -6,12 +6,12 @@ mod bytes;
 mod float;
 mod integer;
 
-mod error;
 mod de;
+mod error;
 mod ser;
 
-pub use error::Error;
 pub use bytes::Bytes;
+pub use error::Error;
 pub use float::{Float, TryFromFloatError};
 pub use integer::Integer;
 

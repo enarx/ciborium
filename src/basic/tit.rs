@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::io::{Read, Write};
 
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Title(pub Major, pub Minor);
@@ -206,67 +205,5 @@ impl Title {
     #[cfg(any(target_pointer_width = "32", target_pointer_width = "64",))]
     pub fn from_length(major: Major, length: impl Into<Option<usize>>) -> Self {
         Self(major, length.into().map(|x| x as u64).into())
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.1.as_ref().len() + 1
-    }
-
-    #[inline]
-    pub fn decode<R: Read>(reader: &mut R) -> Result<Self, DecodeError<R::Error>> {
-        let mut prefix = 0u8;
-        reader.read_exact(core::slice::from_mut(&mut prefix))?;
-
-        let major = match prefix >> 5 {
-            0 => Major::Positive,
-            1 => Major::Negative,
-            2 => Major::Bytes,
-            3 => Major::Text,
-            4 => Major::Array,
-            5 => Major::Map,
-            6 => Major::Tag,
-            7 => Major::Other,
-            _ => unreachable!(),
-        };
-
-        let mut minor = match prefix & 0b00011111 {
-            24 => Minor::Subsequent1([0u8; 1]),
-            25 => Minor::Subsequent2([0u8; 2]),
-            26 => Minor::Subsequent4([0u8; 4]),
-            27 => Minor::Subsequent8([0u8; 8]),
-            31 => Minor::Indeterminate,
-            x => Minor::Immediate(x.try_into().or(Err(DecodeError::Invalid))?),
-        };
-
-        reader.read_exact(minor.as_mut())?;
-        Ok(Self(major, minor))
-    }
-
-    #[inline]
-    pub fn encode<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-        let major: u8 = match self.0 {
-            Major::Positive => 0,
-            Major::Negative => 1,
-            Major::Bytes => 2,
-            Major::Text => 3,
-            Major::Array => 4,
-            Major::Map => 5,
-            Major::Tag => 6,
-            Major::Other => 7,
-        };
-
-        let minor: u8 = match self.1 {
-            Minor::Immediate(x) => x.into(),
-            Minor::Subsequent1(..) => 24,
-            Minor::Subsequent2(..) => 25,
-            Minor::Subsequent4(..) => 26,
-            Minor::Subsequent8(..) => 27,
-            Minor::Indeterminate => 31,
-        };
-
-        writer.write_all(&[(major << 5) | minor])?;
-        writer.write_all(self.1.as_ref())?;
-        Ok(())
     }
 }
