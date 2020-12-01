@@ -279,6 +279,11 @@ impl<'a, T: Write> serde::ser::Serializer for &'a mut Encoder<T> {
             ending: false,
         })
     }
+
+    #[inline]
+    fn is_human_readable(&self) -> bool {
+        false
+    }
 }
 
 macro_rules! end {
