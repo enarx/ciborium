@@ -52,17 +52,12 @@ pub use maj::*;
 pub use min::*;
 pub use tit::*;
 
-/// Validation encountered an invalid value
 #[derive(Debug)]
 pub struct InvalidError(());
 
-/// An error that occurred during decoding
 #[derive(Debug)]
 pub enum DecodeError<T> {
-    /// An error occurred reading bytes
     Io(T),
-
-    /// An error occurred parsing bytes
     Invalid,
 }
 

@@ -5,36 +5,18 @@ use crate::io::{Read, Write};
 
 use core::convert::{TryFrom, TryInto};
 
-/// The `Prefix`, `Affix` sections of a CBOR item
-///
-/// For numeric types, including simple constants such as booleans, no
-/// additional `Suffix` data is required. For complex types, the `Title`
-/// indicates the length of additional CBOR items or bytes (depending on
-/// context) to read from the `Suffix` section. For this reason, `Title`
-/// implements conversions to and from all the major Rust numeric types.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Title(pub Major, pub Minor);
 
 impl Title {
-    /// A simple constant representing `false`
-    pub const FALSE: Self = Self(Major::Other, Minor::Immediate(Immediate(20)));
-
-    /// A simple constant representing `true`
-    pub const TRUE: Self = Self(Major::Other, Minor::Immediate(Immediate(21)));
-
-    /// A simple constant representing `null`
-    pub const NULL: Self = Self(Major::Other, Minor::Immediate(Immediate(22)));
-
-    /// A simple constant representing `undefined`
-    pub const UNDEFINED: Self = Self(Major::Other, Minor::Immediate(Immediate(23)));
-
-    /// The break indicator
     pub const BREAK: Self = Self(Major::Other, Minor::Indeterminate);
 
-    /// A tag indicating the next item is a positive arbitrary sized integer
-    pub const TAG_BIGPOS: Self = Self(Major::Tag, Minor::Immediate(Immediate(2)));
+    pub const FALSE: Self = Self(Major::Other, Minor::Immediate(Immediate(20)));
+    pub const TRUE: Self = Self(Major::Other, Minor::Immediate(Immediate(21)));
+    pub const NULL: Self = Self(Major::Other, Minor::Immediate(Immediate(22)));
+    pub const UNDEFINED: Self = Self(Major::Other, Minor::Immediate(Immediate(23)));
 
-    /// A tag indicating the next item is a negative arbitrary sized integer
+    pub const TAG_BIGPOS: Self = Self(Major::Tag, Minor::Immediate(Immediate(2)));
     pub const TAG_BIGNEG: Self = Self(Major::Tag, Minor::Immediate(Immediate(3)));
 }
 
@@ -220,20 +202,17 @@ impl From<f64> for Title {
 }
 
 impl Title {
-    /// Creates a title from a `Major` and a length
     #[inline]
     #[cfg(any(target_pointer_width = "32", target_pointer_width = "64",))]
     pub fn from_length(major: Major, length: impl Into<Option<usize>>) -> Self {
         Self(major, length.into().map(|x| x as u64).into())
     }
 
-    /// Returns the number of bytes used for this title on the wire
     #[inline]
     pub fn len(&self) -> usize {
         self.1.as_ref().len() + 1
     }
 
-    /// Decodes a title from the supplied reader
     #[inline]
     pub fn decode<R: Read>(reader: &mut R) -> Result<Self, DecodeError<R::Error>> {
         let mut prefix = 0u8;
@@ -264,7 +243,6 @@ impl Title {
         Ok(Self(major, minor))
     }
 
-    /// Encodes a title to the supplied writer
     #[inline]
     pub fn encode<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
         let major: u8 = match self.0 {

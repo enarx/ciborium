@@ -6,42 +6,13 @@ use core::convert::TryFrom;
 
 use half::f16;
 
-/// Additional CBOR item details
-///
-/// This type represents both the `Minor` and the `Affix` section of the
-/// format as outlined in the chart in this module. The `Minor` section
-/// indicates how many following bytes to read. The `Affix` section
-/// contains the number of bytes indicated by the `Minor`. Both of these
-/// sections are contained in this type.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Minor {
-    /// The `Minor` section contains the value (`Affix` has zero length)
     Immediate(Immediate),
-
-    /// The `Affix` section contains one byte
     Subsequent1([u8; 1]),
-
-    /// The `Affix` section contains two bytes
     Subsequent2([u8; 2]),
-
-    /// The `Affix` section contains four bytes
     Subsequent4([u8; 4]),
-
-    /// The `Affix` section contains eight bytes
     Subsequent8([u8; 8]),
-
-    /// The `Suffix` length is indeterminate (`Affix` has zero length)
-    ///
-    /// This case indicates that the `Suffix` contains a stream of CBOR items
-    /// or indicates the termination of the stream (i.e. the break value).
-    ///
-    /// This value is valid for the following `Major` values:
-    ///
-    ///   * `Major::Bytes` (`Suffix` contains `Major::Bytes` items)
-    ///   * `Major::Text` (`Suffix` contains `Major::Text` items)
-    ///   * `Major::Array` (`Suffix` contains CBOR items of any type)
-    ///   * `Major::Map` (`Suffix` contains CBOR items of any type)
-    ///   * `Major::Other` (the break value)
     Indeterminate,
 }
 
