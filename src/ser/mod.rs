@@ -45,6 +45,30 @@ impl<T: Write> Encoder<T> {
         self.0.write_all(title.1.as_ref())?;
         Ok(())
     }
+
+    #[inline]
+    fn bignum(&mut self, negative: bool, v: u128) -> Result<(), Error<T::Error>> {
+        if let Ok(v) = u64::try_from(v) {
+            return self.save(Title(
+                match negative {
+                    false => Major::Positive,
+                    true => Major::Negative,
+                },
+                Minor::from(v),
+            ));
+        }
+
+        let bytes = v.to_be_bytes();
+        let length = bytes.iter().skip_while(|x| **x == 0).count();
+
+        self.save(match negative {
+            false => Title::TAG_BIGPOS,
+            true => Title::TAG_BIGNEG,
+        })?;
+
+        self.save(Title::from_length(Major::Bytes, length))?;
+        Ok(self.0.write_all(&bytes[bytes.len() - length..])?)
+    }
 }
 
 impl<T: Write> From<T> for Encoder<T> {
@@ -71,76 +95,63 @@ where
 
     #[inline]
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
-        self.save(v)
+        self.save(if v { Title::TRUE } else { Title::FALSE })
     }
 
     #[inline]
     fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
-        self.save(v)
+        self.serialize_i64(v.into())
     }
 
     #[inline]
     fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
-        self.save(v)
+        self.serialize_i64(v.into())
     }
 
     #[inline]
     fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
-        self.save(v)
+        self.serialize_i64(v.into())
     }
 
     #[inline]
     fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
-        self.save(v)
+        match v.is_negative() {
+            false => self.save(Title(Major::Positive, Minor::from(v as u64))),
+            true => self.save(Title(Major::Negative, Minor::from(v as u64 ^ !0))),
+        }
     }
 
     #[inline]
     fn serialize_i128(self, v: i128) -> Result<(), Self::Error> {
-        if let Ok(title) = Title::try_from(v) {
-            return self.save(title);
+        match v.is_negative() {
+            false => self.bignum(false, v as u128),
+            true => self.bignum(true, v as u128 ^ !0),
         }
-
-        let (tag, v) = match v.is_negative() {
-            false => (Title::TAG_BIGPOS, v as u128),
-            true => (Title::TAG_BIGNEG, v as u128 ^ !0),
-        };
-
-        let bytes = v.to_be_bytes();
-        let length = bytes.iter().skip_while(|x| **x == 0).count();
-
-        self.save(tag)?;
-        self.save(Title::from_length(Major::Bytes, length))?;
-        Ok(self.0.write_all(&bytes[bytes.len() - length..])?)
     }
 
     #[inline]
     fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
-        self.save(v)
+        self.serialize_u64(v.into())
     }
 
     #[inline]
     fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
-        self.save(v)
+        self.serialize_u64(v.into())
     }
 
     #[inline]
     fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
-        self.save(v)
+        self.serialize_u64(v.into())
     }
 
     #[inline]
     fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
-        self.save(v)
+        self.save(Title(Major::Positive, Minor::from(v)))
     }
 
     #[inline]
     fn serialize_u128(self, v: u128) -> Result<(), Self::Error> {
-        let bytes = v.to_be_bytes();
-        let length = bytes.iter().skip_while(|x| **x == 0).count();
-
-        self.save(Title::TAG_BIGPOS)?;
-        self.save(Title::from_length(Major::Bytes, length))?;
-        Ok(self.0.write_all(&bytes[bytes.len() - length..])?)
+        self.bignum(false, v)
     }
 
     #[inline]
