@@ -30,5 +30,5 @@ rstest = "0.6"
 hex = "0.4"
 
 [features]
-default = []
+default = ["std"]
 std = ["serde/std"]
