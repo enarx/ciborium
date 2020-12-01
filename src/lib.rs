@@ -19,8 +19,8 @@
 extern crate alloc;
 
 mod io;
+mod basic;
 
-pub mod basic;
 pub mod value;
 pub mod de;
 pub mod ser;
