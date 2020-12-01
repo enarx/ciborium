@@ -66,7 +66,7 @@ impl<T: Write> Encoder<T> {
             true => Title::TAG_BIGNEG,
         })?;
 
-        self.save(Title::from_length(Major::Bytes, length))?;
+        self.save(Title(Major::Bytes, length.into()))?;
         Ok(self.0.write_all(&bytes[bytes.len() - length..])?)
     }
 }
@@ -182,13 +182,13 @@ where
     #[inline]
     fn serialize_str(self, v: &str) -> Result<(), Self::Error> {
         let bytes = v.as_bytes();
-        self.save(Title::from_length(Major::Text, bytes.len()))?;
+        self.save(Title(Major::Text, bytes.len().into()))?;
         Ok(self.0.write_all(bytes)?)
     }
 
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result<(), Self::Error> {
-        self.save(Title::from_length(Major::Bytes, v.len()))?;
+        self.save(Title(Major::Bytes, v.len().into()))?;
         Ok(self.0.write_all(v)?)
     }
 
@@ -219,7 +219,7 @@ where
         _index: u32,
         variant: &'static str,
     ) -> Result<(), Self::Error> {
-        self.save(Title::from_length(Major::Map, 1usize))?;
+        self.save(Title(Major::Map, 1usize.into()))?;
         self.serialize_str(variant)?;
         self.serialize_unit()
     }
@@ -241,14 +241,14 @@ where
         variant: &'static str,
         value: &U,
     ) -> Result<(), Self::Error> {
-        self.save(Title::from_length(Major::Map, 1usize))?;
+        self.save(Title(Major::Map, 1usize.into()))?;
         self.serialize_str(variant)?;
         value.serialize(self)
     }
 
     #[inline]
     fn serialize_seq(self, length: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        self.save(Title::from_length(Major::Array, length))?;
+        self.save(Title(Major::Array, length.into()))?;
         Ok(CollectionEncoder {
             encoder: self,
             ending: length.is_none(),
@@ -277,9 +277,9 @@ where
         variant: &'static str,
         length: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        self.save(Title::from_length(Major::Map, 1usize))?;
+        self.save(Title(Major::Map, 1usize.into()))?;
         self.serialize_str(variant)?;
-        self.save(Title::from_length(Major::Array, length))?;
+        self.save(Title(Major::Array, length.into()))?;
         Ok(CollectionEncoder {
             encoder: self,
             ending: false,
@@ -288,7 +288,7 @@ where
 
     #[inline]
     fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        self.save(Title::from_length(Major::Map, length))?;
+        self.save(Title(Major::Map, length.into()))?;
         Ok(CollectionEncoder {
             encoder: self,
             ending: length.is_none(),
@@ -301,7 +301,7 @@ where
         _name: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        self.save(Title::from_length(Major::Map, length))?;
+        self.save(Title(Major::Map, length.into()))?;
         Ok(CollectionEncoder {
             encoder: self,
             ending: false,
@@ -316,9 +316,9 @@ where
         variant: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        self.save(Title::from_length(Major::Map, 1usize))?;
+        self.save(Title(Major::Map, 1usize.into()))?;
         self.serialize_str(variant)?;
-        self.save(Title::from_length(Major::Map, length))?;
+        self.save(Title(Major::Map, length.into()))?;
         Ok(CollectionEncoder {
             encoder: self,
             ending: false,

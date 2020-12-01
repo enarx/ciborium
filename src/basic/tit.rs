@@ -48,27 +48,3 @@ impl TryFrom<Title> for i128 {
         }
     }
 }
-
-impl TryFrom<Title> for Option<usize> {
-    type Error = InvalidError;
-
-    #[inline]
-    fn try_from(value: Title) -> Result<Self, Self::Error> {
-        match value.0 {
-            Major::Bytes | Major::Text | Major::Array | Major::Map => Option::<u64>::from(value.1)
-                .map(usize::try_from)
-                .transpose()
-                .or(Err(InvalidError(()))),
-
-            _ => Err(InvalidError(())),
-        }
-    }
-}
-
-impl Title {
-    #[inline]
-    #[cfg(any(target_pointer_width = "32", target_pointer_width = "64",))]
-    pub fn from_length(major: Major, length: impl Into<Option<usize>>) -> Self {
-        Self(major, length.into().map(|x| x as u64).into())
-    }
-}

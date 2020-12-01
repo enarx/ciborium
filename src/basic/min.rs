@@ -56,6 +56,18 @@ impl From<Minor> for Option<u64> {
     }
 }
 
+impl TryFrom<Minor> for Option<usize> {
+    type Error = InvalidError;
+
+    #[inline]
+    fn try_from(value: Minor) -> Result<Self, Self::Error> {
+        Option::<u64>::from(value)
+            .map(usize::try_from)
+            .transpose()
+            .or(Err(InvalidError(())))
+    }
+}
+
 impl From<u64> for Minor {
     #[inline]
     fn from(value: u64) -> Self {
@@ -73,9 +85,17 @@ impl From<u64> for Minor {
     }
 }
 
-impl From<Option<u64>> for Minor {
+#[cfg(any(target_pointer_width = "32", target_pointer_width = "64",))]
+impl From<usize> for Minor {
     #[inline]
-    fn from(value: Option<u64>) -> Self {
+    fn from(value: usize) -> Self {
+        (value as u64).into()
+    }
+}
+
+impl From<Option<usize>> for Minor {
+    #[inline]
+    fn from(value: Option<usize>) -> Self {
         match value {
             Some(x) => x.into(),
             None => Self::Indeterminate,

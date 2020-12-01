@@ -17,6 +17,7 @@ use serde::de::{self, Deserialize as _, Deserializer as _};
 #[inline]
 fn length<T: core::fmt::Debug>(title: Title, offset: usize) -> Result<Option<usize>, Error<T>> {
     Ok(title
+        .1
         .try_into()
         .map_err(|_| Error::semantic(offset, "unsuppored length"))?)
 }
@@ -456,7 +457,7 @@ where
         let (title, offset) = self.0.pull(true)?;
 
         if title.0 == Major::Map {
-            if let Ok(Some(1usize)) = title.try_into() {
+            if let Ok(Some(1usize)) = title.1.try_into() {
                 return visitor.visit_enum(self);
             }
         }
