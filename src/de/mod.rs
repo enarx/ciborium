@@ -468,7 +468,7 @@ where
         let (title, offset) = self.0.pull(true)?;
 
         match title {
-            Title(Major::Map, Minor::Immediate(Immediate(1))) => visitor.visit_enum(self),
+            Title(Major::Map, Minor::Immediate(1)) => visitor.visit_enum(self),
             Title(Major::Text, ..) => {
                 self.0.push((title, offset));
                 visitor.visit_enum(self)

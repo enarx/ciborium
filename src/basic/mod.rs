@@ -42,12 +42,10 @@
 //!                  Title
 //! ```
 
-mod imm;
 mod maj;
 mod min;
 mod tit;
 
-pub use imm::*;
 pub use maj::*;
 pub use min::*;
 pub use tit::*;

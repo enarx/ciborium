@@ -6,7 +6,7 @@ use core::convert::TryFrom;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Minor {
-    Immediate(Immediate),
+    Immediate(u8),
     Subsequent1([u8; 1]),
     Subsequent2([u8; 2]),
     Subsequent4([u8; 4]),
@@ -71,8 +71,8 @@ impl TryFrom<Minor> for Option<usize> {
 impl From<u64> for Minor {
     #[inline]
     fn from(value: u64) -> Self {
-        if let Ok(value) = Immediate::try_from(value) {
-            Self::Immediate(value)
+        if value < 24 {
+            Self::Immediate(value as u8)
         } else if let Ok(value) = u8::try_from(value) {
             Self::Subsequent1(value.to_be_bytes())
         } else if let Ok(value) = u16::try_from(value) {
