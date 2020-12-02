@@ -77,7 +77,7 @@ enum Enum {
         map
     }, cbor!({"baz" => "qux", "foo" => "bar"}).unwrap()),
 
-    case(Enum::Unit, cbor!({"Unit" => null}).unwrap()),
+    case(Enum::Unit, cbor!("Unit").unwrap()),
     case(Enum::Newtype(45), cbor!({"Newtype" => 45}).unwrap()),
     case(Enum::Tuple(56, 67), cbor!({"Tuple"=> vec![56, 67]}).unwrap()),
     case(Enum::Struct {

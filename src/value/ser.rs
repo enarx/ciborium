@@ -159,7 +159,7 @@ impl ser::Serializer for Serializer<()> {
         _index: u32,
         variant: &'static str,
     ) -> Result<Value, Error> {
-        Ok(vec![(variant.into(), Value::Null)].into())
+        Ok(variant.into())
     }
 
     #[inline]

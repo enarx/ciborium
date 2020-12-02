@@ -276,7 +276,8 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
         match self.0 {
-            Value::Map(x) if x.len() == 1 => visitor.visit_enum(Deserializer(x.iter())),
+            Value::Map(x) if x.len() == 1 => visitor.visit_enum(Deserializer(&x[0])),
+            x @ Value::Text(..) => visitor.visit_enum(Deserializer(x)),
             _ => Err(de::Error::invalid_type(self.0.into(), &"map")),
         }
     }
@@ -322,19 +323,31 @@ impl<'a, 'de, T: Iterator<Item = &'a (Value, Value)>> de::MapAccess<'de>
     }
 }
 
-impl<'a, 'de, T: Iterator<Item = &'a (Value, Value)>> de::EnumAccess<'de> for Deserializer<T> {
+impl<'a, 'de> de::EnumAccess<'de> for Deserializer<&'a (Value, Value)> {
     type Error = Error;
     type Variant = Deserializer<&'a Value>;
 
     #[inline]
     fn variant_seed<V: de::DeserializeSeed<'de>>(
-        mut self,
+        self,
         seed: V,
     ) -> Result<(V::Value, Self::Variant), Self::Error> {
-        match self.0.next() {
-            Some((k, v)) => Ok((seed.deserialize(Deserializer(k))?, Deserializer(v))),
-            None => Err(de::Error::invalid_length(0, &"exatly one")),
-        }
+        let k = seed.deserialize(Deserializer(&self.0 .0))?;
+        Ok((k, Deserializer(&self.0 .1)))
+    }
+}
+
+impl<'a, 'de> de::EnumAccess<'de> for Deserializer<&'a Value> {
+    type Error = Error;
+    type Variant = Deserializer<&'a Value>;
+
+    #[inline]
+    fn variant_seed<V: de::DeserializeSeed<'de>>(
+        self,
+        seed: V,
+    ) -> Result<(V::Value, Self::Variant), Self::Error> {
+        let k = seed.deserialize(self)?;
+        Ok((k, Deserializer(&Value::Null)))
     }
 }
 

@@ -219,9 +219,7 @@ where
         _index: u32,
         variant: &'static str,
     ) -> Result<(), Self::Error> {
-        self.save(Title(Major::Map, 1usize.into()))?;
-        self.serialize_str(variant)?;
-        self.serialize_unit()
+        self.serialize_str(variant)
     }
 
     #[inline]

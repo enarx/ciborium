@@ -467,13 +467,14 @@ where
     ) -> Result<V::Value, Self::Error> {
         let (title, offset) = self.0.pull(true)?;
 
-        if title.0 == Major::Map {
-            if let Ok(Some(1usize)) = title.1.try_into() {
-                return visitor.visit_enum(self);
+        match title {
+            Title(Major::Map, Minor::Immediate(Immediate(1))) => visitor.visit_enum(self),
+            Title(Major::Text, ..) => {
+                self.0.push((title, offset));
+                visitor.visit_enum(self)
             }
+            _ => Err(Error::semantic(offset, "expected enum")),
         }
-
-        Err(Error::semantic(offset, "expected enum"))
     }
 
     #[inline]
