@@ -354,7 +354,7 @@ impl<'a, 'de> de::VariantAccess<'de> for Deserializer<&'a Value> {
         self,
         seed: U,
     ) -> Result<U::Value, Self::Error> {
-        seed.deserialize(Deserializer(self.0))
+        seed.deserialize(self)
     }
 
     #[inline]
@@ -363,7 +363,7 @@ impl<'a, 'de> de::VariantAccess<'de> for Deserializer<&'a Value> {
         _len: usize,
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        Deserializer(self.0).deserialize_seq(visitor)
+        self.deserialize_seq(visitor)
     }
 
     #[inline]
@@ -372,7 +372,7 @@ impl<'a, 'de> de::VariantAccess<'de> for Deserializer<&'a Value> {
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        Deserializer(self.0).deserialize_map(visitor)
+        self.deserialize_map(visitor)
     }
 }
 
