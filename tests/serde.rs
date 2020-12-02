@@ -35,7 +35,14 @@ enum Enum {
 }
 
 #[derive(Deserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq)]
-struct SimpleStruct {
+struct SimpleStruct1 {
+    pub number: u16,
+    numenum: NumberEnum,
+}
+
+
+#[derive(Deserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq)]
+struct SimpleStruct2 {
     numenum: NumberEnum,
     pub number: u16,
 }
@@ -103,27 +110,26 @@ enum NumberEnum {
         }
     }).unwrap()),
 
-    case(SimpleStruct {
+    case(SimpleStruct1 {
         number: 42,
         numenum: NumberEnum::Nuffing,
     }, cbor!({
+        "number" => 42,
         "numenum" => {
-            "number" => 42,
-            "nuffing" => null
+            "Nuffing" => null
         }
     }).unwrap()),
 
-    case(SimpleStruct {
+    case(SimpleStruct2 {
         numenum: NumberEnum::Nuffing,
         number: 42,
     }, cbor!({
         "numenum" => {
-            "nuffing" => null,
-            "number" => 42
-        }
+            "Nuffing" => null
+        },
+        "number" => 42
     }).unwrap()),
-    //case(seel73 of tests/serde.rs, etc., cbor!({"keepmgr" => {"address" => "nail", "port" => 3030}, "backend" => {"Nil" => null}, "uuid" => Value::from(&b"\x6E\x7A\xF0\xCC\xB1\xC7409B8E1DA89A8827D871")}).unwrap()),
-    //{"numenum": {"nuffing": null}, "number": 42}
+ 
 )]
 fn test<'de, T: Serialize + Deserialize<'de> + Debug + Eq>(item: T, value: Value) {
     // Encoded into/from CBOR
