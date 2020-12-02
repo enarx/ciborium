@@ -93,6 +93,9 @@ impl<'a, T: Read> Deserializer<&'a mut Io<T>> {
             }
 
             if title.0 != maj {
+                if title.1 == Minor::Immediate(Immediate(22)) {
+                    continue;
+                }
                 return Err(Error::semantic(offset, msg));
             }
 
