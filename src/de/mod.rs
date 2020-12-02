@@ -47,46 +47,33 @@ impl<T: Read> Io<T> {
 
     #[inline]
     fn pull(&mut self, skip_tag: bool) -> Result<(Title, usize), Error<T::Error>> {
-        if let Some(x) = self.buffer.take() {
-            return Ok(x);
+        if let Some((title, offset)) = self.buffer.take() {
+            if title.0 != Major::Tag || !skip_tag {
+                return Ok((title, offset));
+            }
         }
 
         loop {
-            let offset = self.offset;
+            let (title, offset) = match self.buffer.take() {
+                Some(x) => x,
+                None => {
+                    let offset = self.offset;
 
-            let mut prefix = 0u8;
-            self.reader.read_exact(core::slice::from_mut(&mut prefix))?;
-            self.offset += 1;
+                    let mut prefix = [0u8];
+                    self.reader.read_exact(&mut prefix)?;
+                    self.offset += 1;
 
-            let major = match prefix >> 5 {
-                0 => Major::Positive,
-                1 => Major::Negative,
-                2 => Major::Bytes,
-                3 => Major::Text,
-                4 => Major::Array,
-                5 => Major::Map,
-                6 => Major::Tag,
-                7 => Major::Other,
-                _ => unreachable!(),
+                    let mut title = Title::try_from(prefix[0]).or(Err(Error::Syntax(offset)))?;
+                    self.reader.read_exact(title.1.as_mut())?;
+                    self.offset += title.1.as_ref().len();
+
+                    (title, offset)
+                }
             };
 
-            let mut minor = match prefix & 0b00011111 {
-                24 => Minor::Subsequent1([0u8; 1]),
-                25 => Minor::Subsequent2([0u8; 2]),
-                26 => Minor::Subsequent4([0u8; 4]),
-                27 => Minor::Subsequent8([0u8; 8]),
-                31 => Minor::Indeterminate,
-                x => Minor::Immediate(x.try_into().or(Err(Error::Syntax(offset)))?),
-            };
-
-            self.reader.read_exact(minor.as_mut())?;
-            self.offset += minor.as_ref().len();
-
-            if major == Major::Tag && skip_tag {
-                continue;
+            if title.0 != Major::Tag || !skip_tag {
+                return Ok((title, offset));
             }
-
-            return Ok((Title(major, minor), offset));
         }
     }
 }

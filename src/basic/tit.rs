@@ -2,6 +2,8 @@
 
 use super::*;
 
+use core::convert::TryFrom;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Title(pub Major, pub Minor);
 
@@ -15,4 +17,20 @@ impl Title {
 
     pub const TAG_BIGPOS: Self = Self(Major::Tag, Minor::Immediate(2));
     pub const TAG_BIGNEG: Self = Self(Major::Tag, Minor::Immediate(3));
+}
+
+impl TryFrom<u8> for Title {
+    type Error = InvalidError;
+
+    #[inline]
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Ok(Self(Major::from(value), Minor::try_from(value)?))
+    }
+}
+
+impl From<Title> for u8 {
+    #[inline]
+    fn from(value: Title) -> Self {
+        u8::from(value.0) | u8::from(value.1)
+    }
 }

@@ -14,6 +14,37 @@ pub enum Minor {
     Indeterminate,
 }
 
+impl TryFrom<u8> for Minor {
+    type Error = InvalidError;
+
+    #[inline]
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Ok(match value & 0b00011111 {
+            x @ 0..=23 => Minor::Immediate(x),
+            24 => Minor::Subsequent1([0u8; 1]),
+            25 => Minor::Subsequent2([0u8; 2]),
+            26 => Minor::Subsequent4([0u8; 4]),
+            27 => Minor::Subsequent8([0u8; 8]),
+            31 => Minor::Indeterminate,
+            _ => return Err(InvalidError(())),
+        })
+    }
+}
+
+impl From<Minor> for u8 {
+    #[inline]
+    fn from(value: Minor) -> Self {
+        match value {
+            Minor::Immediate(x) => x,
+            Minor::Subsequent1(..) => 24,
+            Minor::Subsequent2(..) => 25,
+            Minor::Subsequent4(..) => 26,
+            Minor::Subsequent8(..) => 27,
+            Minor::Indeterminate => 31,
+        }
+    }
+}
+
 impl AsRef<[u8]> for Minor {
     #[inline]
     fn as_ref(&self) -> &[u8] {

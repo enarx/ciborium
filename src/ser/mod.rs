@@ -18,30 +18,8 @@ struct Encoder<T: Write>(T);
 
 impl<T: Write> Encoder<T> {
     #[inline]
-    fn save(&mut self, title: impl Into<Title>) -> Result<(), Error<T::Error>> {
-        let title = title.into();
-
-        let major: u8 = match title.0 {
-            Major::Positive => 0,
-            Major::Negative => 1,
-            Major::Bytes => 2,
-            Major::Text => 3,
-            Major::Array => 4,
-            Major::Map => 5,
-            Major::Tag => 6,
-            Major::Other => 7,
-        };
-
-        let minor: u8 = match title.1 {
-            Minor::Immediate(x) => x.into(),
-            Minor::Subsequent1(..) => 24,
-            Minor::Subsequent2(..) => 25,
-            Minor::Subsequent4(..) => 26,
-            Minor::Subsequent8(..) => 27,
-            Minor::Indeterminate => 31,
-        };
-
-        self.0.write_all(&[(major << 5) | minor])?;
+    fn save(&mut self, title: Title) -> Result<(), Error<T::Error>> {
+        self.0.write_all(&[title.into()])?;
         self.0.write_all(title.1.as_ref())?;
         Ok(())
     }
