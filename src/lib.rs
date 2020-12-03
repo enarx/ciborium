@@ -12,9 +12,10 @@
 //! For dynamic CBOR value creation/inspection, see [value::Value](value/enum.Value.html).
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![deny(clippy::all)]
 #![deny(missing_docs)]
+#![deny(clippy::all)]
 #![deny(clippy::cargo)]
+#![allow(clippy::unit_arg)]
 
 extern crate alloc;
 
