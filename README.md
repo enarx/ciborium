@@ -7,17 +7,13 @@
 
 Welcome to Ciborium!
 
-Ciborium contains utilities for working with CBOR types. This includes:
+Ciborium contains CBOR serialization and deserialization implementations for serde.
 
-  * Basic parsing (see `basic` module)
-  * Serde serialization/deserialization (see `serde` module)
-  * Tokio frame codec for [CBOR sequences](https://tools.ietf.org/html/rfc8742)
-    (see `tokio` module)
+## Quick Start
 
-Ciborium has the following feature flags:
+You're probably looking for [de::from_reader](de/fn.from_reader.html) and
+[ser::into_writer](ser/fn.into_writer.html), which are the main functions.
 
-  * `serde` - enables limited `serde` support (i.e. `no_std`)
-  * `std`   - enables complete `serde` support (implies `serde` flag)
-  * `tokio` - enables `tokio` support (implies `std` flag)
+For dynamic CBOR value creation/inspection, see [value::Value](value/enum.Value.html).
 
 License: Apache-2.0
