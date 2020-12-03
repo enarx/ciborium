@@ -29,6 +29,17 @@ struct Io<T: Read> {
     offset: usize,
 }
 
+impl<T: Read> Read for Io<T> {
+    type Error = T::Error;
+
+    #[inline]
+    fn read_exact(&mut self, data: &mut [u8]) -> Result<(), Self::Error> {
+        self.reader.read_exact(data)?;
+        self.offset += data.len();
+        Ok(())
+    }
+}
+
 impl<T: Read> From<T> for Io<T> {
     fn from(value: T) -> Self {
         Self {
@@ -60,12 +71,10 @@ impl<T: Read> Io<T> {
                     let offset = self.offset;
 
                     let mut prefix = [0u8];
-                    self.reader.read_exact(&mut prefix)?;
-                    self.offset += 1;
+                    self.read_exact(&mut prefix)?;
 
                     let mut title = Title::try_from(prefix[0]).or(Err(Error::Syntax(offset)))?;
-                    self.reader.read_exact(title.1.as_mut())?;
-                    self.offset += title.1.as_ref().len();
+                    self.read_exact(title.1.as_mut())?;
 
                     (title, offset)
                 }
@@ -88,8 +97,7 @@ where
     fn chunked(
         &mut self,
         maj: Major,
-        msg: &str,
-        mut fnc: impl FnMut(&mut T, usize, usize) -> Result<(), Error<T::Error>>,
+        mut fnc: impl FnMut(&mut Io<T>, usize, usize) -> Result<(), Error<T::Error>>,
     ) -> Result<(), Error<T::Error>> {
         let mut chunked = 0usize;
 
@@ -104,11 +112,11 @@ where
             }
 
             if title.0 != maj {
-                return Err(Error::semantic(offset, msg));
+                return Err(Error::Syntax(offset));
             }
 
             if let Some(len) = length(title, offset)? {
-                fnc(&mut self.0.reader, len, offset)?;
+                fnc(self.0, len, offset)?;
                 if chunked == 0 {
                     return Ok(());
                 }
@@ -123,7 +131,7 @@ where
         let mut buffer = 0u128.to_be_bytes();
         let mut status = buffer.len();
 
-        self.chunked(Major::Bytes, msg, |rdr, len, offset| {
+        self.chunked(Major::Bytes, |rdr, len, offset| {
             if len > status {
                 return Err(Error::semantic(offset, msg));
             }
@@ -162,28 +170,28 @@ where
                 return Ok(self
                     .bignum(msg)?
                     .try_into()
-                    .map_err(|_| Error::semantic(offset, msg))?)
+                    .map_err(|_| Error::semantic(offset + 1, msg))?)
             }
 
             Title::TAG_BIGNEG => {
                 let raw = self.bignum(msg)?;
 
                 if raw.leading_zeros() == 0 {
-                    return Err(Error::semantic(offset, msg));
+                    return Err(Error::semantic(offset + 1, msg));
                 }
 
                 raw as i128 ^ !0
             }
 
-            title => {
-                let x = Option::<u64>::from(title.1).ok_or(Error::semantic(offset, msg))?;
+            Title(Major::Positive, minor) => Option::<u64>::from(minor)
+                .ok_or(Error::Syntax(offset))?
+                .into(),
 
-                match title.0 {
-                    Major::Positive => x as i128,
-                    Major::Negative => x as i128 ^ !0,
-                    _ => return Err(Error::semantic(offset, msg)),
-                }
-            }
+            Title(Major::Negative, minor) => Option::<u64>::from(minor)
+                .map(|x| x as i128 ^ !0)
+                .ok_or(Error::Syntax(offset))?,
+
+            _ => return Err(Error::semantic(offset, msg)),
         };
 
         Ok(signed
@@ -223,12 +231,12 @@ where
                 Title::UNDEFINED => self.deserialize_option(v),
                 Title::NULL => self.deserialize_option(v),
 
-                Title(Major::Other, _) => Err(Error::semantic(item.1, "unknown type")),
-
                 Title(Major::Tag, _) => {
                     self.0.pull(false)?;
                     continue;
                 }
+
+                _ => Err(Error::semantic(item.1, "unknown type")),
             };
         }
     }
@@ -333,19 +341,19 @@ where
         mut self,
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        let offset = self.0.offset;
-        let mut buffer = Vec::new();
+        let mut string = String::new();
 
-        self.chunked(Major::Text, "expected string", |rdr, len, _| {
-            let cur = buffer.len();
-            buffer.resize(cur + len, 0);
-            Ok(rdr.read_exact(&mut buffer[cur..])?)
+        self.chunked(Major::Text, |rdr, len, offset| {
+            let mut buf = vec![0; len];
+            rdr.read_exact(&mut buf[..])?;
+
+            match core::str::from_utf8(&buf) {
+                Ok(s) => Ok(string.push_str(s)),
+                Err(..) => Err(Error::Syntax(offset)),
+            }
         })?;
 
-        match String::from_utf8(buffer) {
-            Ok(s) => visitor.visit_string(s),
-            Err(e) => Err(Error::Syntax(offset + e.utf8_error().valid_up_to())),
-        }
+        visitor.visit_string(string)
     }
 
     #[inline]
@@ -360,7 +368,7 @@ where
     ) -> Result<V::Value, Self::Error> {
         let mut buffer = Vec::new();
 
-        self.chunked(Major::Bytes, "expected bytes", |rdr, len, _| {
+        self.chunked(Major::Bytes, |rdr, len, _| {
             let cur = buffer.len();
             buffer.resize(cur + len, 0);
             Ok(rdr.read_exact(&mut buffer[cur..])?)
