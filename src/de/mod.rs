@@ -9,7 +9,7 @@ use crate::io::Read;
 use crate::value::Float;
 pub use error::Error;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 use core::convert::{TryFrom, TryInto};
 
 use serde::de::{self, Deserialize as _, Deserializer as _};
