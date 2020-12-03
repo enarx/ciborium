@@ -8,6 +8,7 @@ use ciborium::{cbor, de::from_reader, ser::into_writer};
 use rstest::rstest;
 
 #[rstest(value, bytes, alternate,
+    ////// The following test are values from the RFC
     case(cbor!(0).unwrap(), "00", false),
     case(cbor!(1).unwrap(), "01", false),
     case(cbor!(1).unwrap(), "1b0000000000000001", true),
@@ -105,6 +106,10 @@ use rstest::rstest;
     case(cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), "bf61610161629f0203ffff", true),
     case(cbor!(["a", {"b" => "c"}]).unwrap(), "826161bf61626163ff", true),
     case(cbor!({"Fun" => true, "Amt" => -2}).unwrap(), "bf6346756ef563416d7421ff", true),
+
+    ////// The following test are NOT values from the RFC
+    // Test that we can decode BigNums with leading zeroes (see RFC section 2.4.2)
+    case(cbor!(1u8).unwrap(), "C2540000000000000000000000000000000000000001", true),
 )]
 fn test(value: Value, bytes: &str, alternate: bool) {
     let bytes = hex::decode(bytes).unwrap();

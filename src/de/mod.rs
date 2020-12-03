@@ -128,20 +128,30 @@ where
 
     #[inline]
     fn bignum(&mut self, msg: &str) -> Result<u128, Error<T::Error>> {
-        let mut buffer = 0u128.to_be_bytes();
-        let mut status = buffer.len();
+        let mut buffer = 0u128.to_ne_bytes();
+        let mut index = 0;
 
         self.chunked(Major::Bytes, |rdr, len, offset| {
-            if len > status {
-                return Err(Error::semantic(offset, msg));
-            }
+            Ok(for _ in 0..len {
+                let mut byte = [0];
+                rdr.read_exact(&mut byte)?;
 
-            rdr.read_exact(&mut buffer[status - len..])?;
-            status -= len;
-            Ok(())
+                // Skip leading zeroes.
+                if index == 0 && byte[0] == 0 {
+                    continue;
+                }
+
+                if index >= buffer.len() {
+                    return Err(Error::semantic(offset, msg));
+                }
+
+                buffer[index] = byte[0];
+                index += 1;
+            })
         })?;
 
-        Ok(u128::from_be_bytes(buffer))
+        buffer[0..index].reverse();
+        Ok(u128::from_le_bytes(buffer))
     }
 
     #[inline]
