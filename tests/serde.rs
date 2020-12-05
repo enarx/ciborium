@@ -105,3 +105,43 @@ fn test<'de, T: Serialize + Deserialize<'de> + Debug + Eq>(item: T, value: Value
     let back: T = val.deserialized().unwrap();
     assert_eq!(item, back);
 }
+
+#[test]
+fn test2() {
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct Packet {
+        #[serde(flatten)]
+        data: PacketPayload,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    enum PacketPayload {
+        FloatValues { x: f64, y: f32 },
+        IntValues { z: i64 },
+    }
+
+    let item = Packet {
+        data: PacketPayload::FloatValues { x: 2.5, y: 2.5 },
+    };
+
+    let value = cbor!({
+        "FloatValues" => {
+            "x" => 2.5,
+            "y" => 2.5
+        }
+    })
+    .unwrap();
+
+    let mut buf = Vec::new();
+    into_writer(&item, &mut buf).unwrap();
+    eprintln!("{}", hex::encode(&buf));
+    let back: Packet = from_reader(&buf[..]).unwrap();
+    assert_eq!(item, back);
+
+    // Encoded into/from ciborium::serde::value::Value
+    let val = Value::serialized(&item).unwrap();
+    eprintln!("{:?}", val);
+    assert_eq!(value, val);
+    let back: Packet = val.deserialized().unwrap();
+    assert_eq!(item, back);
+}
