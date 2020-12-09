@@ -6,12 +6,12 @@ use core::convert::TryFrom;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Minor {
-    Immediate(u8),
-    Subsequent1([u8; 1]),
-    Subsequent2([u8; 2]),
-    Subsequent4([u8; 4]),
-    Subsequent8([u8; 8]),
-    Indeterminate,
+    This(u8),
+    Next1([u8; 1]),
+    Next2([u8; 2]),
+    Next4([u8; 4]),
+    Next8([u8; 8]),
+    More,
 }
 
 impl TryFrom<u8> for Minor {
@@ -20,12 +20,12 @@ impl TryFrom<u8> for Minor {
     #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         Ok(match value & 0b00011111 {
-            x @ 0..=23 => Minor::Immediate(x),
-            24 => Minor::Subsequent1([0u8; 1]),
-            25 => Minor::Subsequent2([0u8; 2]),
-            26 => Minor::Subsequent4([0u8; 4]),
-            27 => Minor::Subsequent8([0u8; 8]),
-            31 => Minor::Indeterminate,
+            x @ 0..=23 => Minor::This(x),
+            24 => Minor::Next1([0u8; 1]),
+            25 => Minor::Next2([0u8; 2]),
+            26 => Minor::Next4([0u8; 4]),
+            27 => Minor::Next8([0u8; 8]),
+            31 => Minor::More,
             _ => return Err(InvalidError(())),
         })
     }
@@ -35,12 +35,12 @@ impl From<Minor> for u8 {
     #[inline]
     fn from(value: Minor) -> Self {
         match value {
-            Minor::Immediate(x) => x,
-            Minor::Subsequent1(..) => 24,
-            Minor::Subsequent2(..) => 25,
-            Minor::Subsequent4(..) => 26,
-            Minor::Subsequent8(..) => 27,
-            Minor::Indeterminate => 31,
+            Minor::This(x) => x,
+            Minor::Next1(..) => 24,
+            Minor::Next2(..) => 25,
+            Minor::Next4(..) => 26,
+            Minor::Next8(..) => 27,
+            Minor::More => 31,
         }
     }
 }
@@ -49,12 +49,12 @@ impl AsRef<[u8]> for Minor {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         match self {
-            Self::Indeterminate => &[],
-            Self::Immediate(_) => &[],
-            Self::Subsequent1(x) => x.as_ref(),
-            Self::Subsequent2(x) => x.as_ref(),
-            Self::Subsequent4(x) => x.as_ref(),
-            Self::Subsequent8(x) => x.as_ref(),
+            Self::More => &[],
+            Self::This(..) => &[],
+            Self::Next1(x) => x.as_ref(),
+            Self::Next2(x) => x.as_ref(),
+            Self::Next4(x) => x.as_ref(),
+            Self::Next8(x) => x.as_ref(),
         }
     }
 }
@@ -63,12 +63,12 @@ impl AsMut<[u8]> for Minor {
     #[inline]
     fn as_mut(&mut self) -> &mut [u8] {
         match self {
-            Self::Indeterminate => &mut [],
-            Self::Immediate(_) => &mut [],
-            Self::Subsequent1(x) => x.as_mut(),
-            Self::Subsequent2(x) => x.as_mut(),
-            Self::Subsequent4(x) => x.as_mut(),
-            Self::Subsequent8(x) => x.as_mut(),
+            Self::More => &mut [],
+            Self::This(..) => &mut [],
+            Self::Next1(x) => x.as_mut(),
+            Self::Next2(x) => x.as_mut(),
+            Self::Next4(x) => x.as_mut(),
+            Self::Next8(x) => x.as_mut(),
         }
     }
 }
@@ -77,12 +77,12 @@ impl From<Minor> for Option<u64> {
     #[inline]
     fn from(value: Minor) -> Self {
         Some(match value {
-            Minor::Immediate(x) => x.into(),
-            Minor::Subsequent1(x) => u8::from_be_bytes(x).into(),
-            Minor::Subsequent2(x) => u16::from_be_bytes(x).into(),
-            Minor::Subsequent4(x) => u32::from_be_bytes(x).into(),
-            Minor::Subsequent8(x) => u64::from_be_bytes(x),
-            Minor::Indeterminate => return None,
+            Minor::This(x) => x.into(),
+            Minor::Next1(x) => u8::from_be_bytes(x).into(),
+            Minor::Next2(x) => u16::from_be_bytes(x).into(),
+            Minor::Next4(x) => u32::from_be_bytes(x).into(),
+            Minor::Next8(x) => u64::from_be_bytes(x),
+            Minor::More => return None,
         })
     }
 }
@@ -103,15 +103,15 @@ impl From<u64> for Minor {
     #[inline]
     fn from(value: u64) -> Self {
         if value < 24 {
-            Self::Immediate(value as u8)
+            Self::This(value as u8)
         } else if let Ok(value) = u8::try_from(value) {
-            Self::Subsequent1(value.to_be_bytes())
+            Self::Next1(value.to_be_bytes())
         } else if let Ok(value) = u16::try_from(value) {
-            Self::Subsequent2(value.to_be_bytes())
+            Self::Next2(value.to_be_bytes())
         } else if let Ok(value) = u32::try_from(value) {
-            Self::Subsequent4(value.to_be_bytes())
+            Self::Next4(value.to_be_bytes())
         } else {
-            Self::Subsequent8(value.to_be_bytes())
+            Self::Next8(value.to_be_bytes())
         }
     }
 }
@@ -129,7 +129,7 @@ impl From<Option<usize>> for Minor {
     fn from(value: Option<usize>) -> Self {
         match value {
             Some(x) => x.into(),
-            None => Self::Indeterminate,
+            None => Self::More,
         }
     }
 }

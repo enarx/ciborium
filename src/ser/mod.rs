@@ -142,11 +142,11 @@ where
         let v = Float::from(v);
 
         let minor = if let Ok(x) = half::f16::try_from(v) {
-            Minor::Subsequent2(x.to_be_bytes())
+            Minor::Next2(x.to_be_bytes())
         } else if let Ok(x) = f32::try_from(v) {
-            Minor::Subsequent4(x.to_be_bytes())
+            Minor::Next4(x.to_be_bytes())
         } else {
-            Minor::Subsequent8(f64::from(v).to_be_bytes())
+            Minor::Next8(f64::from(v).to_be_bytes())
         };
 
         self.save(Title(Major::Other, minor))

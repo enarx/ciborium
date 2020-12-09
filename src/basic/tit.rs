@@ -8,15 +8,15 @@ use core::convert::TryFrom;
 pub struct Title(pub Major, pub Minor);
 
 impl Title {
-    pub const BREAK: Self = Self(Major::Other, Minor::Indeterminate);
+    pub const BREAK: Self = Self(Major::Other, Minor::More);
 
-    pub const FALSE: Self = Self(Major::Other, Minor::Immediate(20));
-    pub const TRUE: Self = Self(Major::Other, Minor::Immediate(21));
-    pub const NULL: Self = Self(Major::Other, Minor::Immediate(22));
-    pub const UNDEFINED: Self = Self(Major::Other, Minor::Immediate(23));
+    pub const FALSE: Self = Self(Major::Other, Minor::This(20));
+    pub const TRUE: Self = Self(Major::Other, Minor::This(21));
+    pub const NULL: Self = Self(Major::Other, Minor::This(22));
+    pub const UNDEFINED: Self = Self(Major::Other, Minor::This(23));
 
-    pub const TAG_BIGPOS: Self = Self(Major::Tag, Minor::Immediate(2));
-    pub const TAG_BIGNEG: Self = Self(Major::Tag, Minor::Immediate(3));
+    pub const TAG_BIGPOS: Self = Self(Major::Tag, Minor::This(2));
+    pub const TAG_BIGNEG: Self = Self(Major::Tag, Minor::This(3));
 }
 
 impl TryFrom<u8> for Title {

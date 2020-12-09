@@ -159,9 +159,9 @@ where
         let (title, offset) = self.0.pull(true)?;
 
         let float = match (title.0, title.1) {
-            (Major::Other, Minor::Subsequent2(x)) => half::f16::from_be_bytes(x).into(),
-            (Major::Other, Minor::Subsequent4(x)) => f32::from_be_bytes(x).into(),
-            (Major::Other, Minor::Subsequent8(x)) => f64::from_be_bytes(x).into(),
+            (Major::Other, Minor::Next2(x)) => half::f16::from_be_bytes(x).into(),
+            (Major::Other, Minor::Next4(x)) => f32::from_be_bytes(x).into(),
+            (Major::Other, Minor::Next8(x)) => f64::from_be_bytes(x).into(),
             _ => return Err(Error::semantic(offset, msg)),
         };
 
@@ -233,9 +233,9 @@ where
                 Title(Major::Array, _) => self.deserialize_seq(v),
                 Title(Major::Map, _) => self.deserialize_map(v),
 
-                Title(Major::Other, Minor::Subsequent2(_)) => self.deserialize_f64(v),
-                Title(Major::Other, Minor::Subsequent4(_)) => self.deserialize_f64(v),
-                Title(Major::Other, Minor::Subsequent8(_)) => self.deserialize_f64(v),
+                Title(Major::Other, Minor::Next2(_)) => self.deserialize_f64(v),
+                Title(Major::Other, Minor::Next4(_)) => self.deserialize_f64(v),
+                Title(Major::Other, Minor::Next8(_)) => self.deserialize_f64(v),
                 Title::FALSE => self.deserialize_bool(v),
                 Title::TRUE => self.deserialize_bool(v),
                 Title::UNDEFINED => self.deserialize_option(v),
@@ -473,7 +473,7 @@ where
         let (title, offset) = self.0.pull(true)?;
 
         match title {
-            Title(Major::Map, Minor::Immediate(1)) => visitor.visit_enum(self),
+            Title(Major::Map, Minor::This(1)) => visitor.visit_enum(self),
             Title(Major::Text, ..) => {
                 self.0.push((title, offset));
                 visitor.visit_enum(self)
