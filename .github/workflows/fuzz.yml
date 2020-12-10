@@ -1,0 +1,16 @@
+on: [push, pull_request]
+name: fuzz
+jobs:
+  fuzz:
+    name: Fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          default: true
+          profile: minimal
+      - run: cargo install cargo-fuzz
+      - run: cargo +nightly fuzz run fuzz_from_slice -- -max_len=4096 -rss_limit_mb=4096

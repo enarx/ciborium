@@ -1,0 +1,19 @@
+[package]
+name = "ciborium-fuzz"
+version = "0.0.0"
+authors = ["David Korczynski <david@adalogics.com>", "Harald Hoyer <harald@redhat.com>"]
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.3"
+ciborium = { path = ".." }
+
+[[bin]]
+name = "fuzz_from_slice"
+path = "fuzz_targets/fuzz_from_slice.rs"
+
+[workspace]
