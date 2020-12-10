@@ -157,19 +157,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
             Value::Null => visitor.visit_none(),
 
             Value::Integer(x) => {
-                if let Ok(x) = u8::try_from(*x) {
-                    visitor.visit_u8(x)
-                } else if let Ok(x) = i8::try_from(*x) {
-                    visitor.visit_i8(x)
-                } else if let Ok(x) = u16::try_from(*x) {
-                    visitor.visit_u16(x)
-                } else if let Ok(x) = i16::try_from(*x) {
-                    visitor.visit_i16(x)
-                } else if let Ok(x) = u32::try_from(*x) {
-                    visitor.visit_u32(x)
-                } else if let Ok(x) = i32::try_from(*x) {
-                    visitor.visit_i32(x)
-                } else if let Ok(x) = u64::try_from(*x) {
+                if let Ok(x) = u64::try_from(*x) {
                     visitor.visit_u64(x)
                 } else if let Ok(x) = i64::try_from(*x) {
                     visitor.visit_i64(x)
@@ -182,15 +170,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
                 }
             }
 
-            Value::Float(x) => {
-                if let Ok(x) = f32::try_from(*x) {
-                    visitor.visit_f32(x)
-                } else if let Ok(x) = f64::try_from(*x) {
-                    visitor.visit_f64(x)
-                } else {
-                    unreachable!()
-                }
-            }
+            Value::Float(x) => visitor.visit_f64(f64::from(*x)),
         }
     }
 
