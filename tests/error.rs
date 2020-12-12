@@ -28,19 +28,19 @@ use rstest::rstest;
     // Positive BigNum too large
     case(
         "C254FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-        Error::Semantic(Some(1), "expected u128".into())
+        Error::Semantic(Some(1), "bigint too large".into())
     ),
 
     // Negative BigNum too large
     case(
         "C354FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-        Error::Semantic(Some(1), "expected i128".into())
+        Error::Semantic(Some(1), "bigint too large".into())
     ),
 
     // Negative BigNum too large (by one bit)
     case(
         "C35080000000000000000000000000000000",
-        Error::Semantic(Some(1), "expected i128".into())
+        Error::Semantic(Some(1), "bigint too large".into())
     ),
 )]
 fn test(bytes: &str, error: Error<std::io::Error>) {

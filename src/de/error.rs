@@ -41,6 +41,16 @@ impl<T> From<T> for Error<T> {
     }
 }
 
+impl<T> From<crate::basic::Error<T>> for Error<T> {
+    #[inline]
+    fn from(value: crate::basic::Error<T>) -> Self {
+        match value {
+            crate::basic::Error::Io(x) => Self::Io(x),
+            crate::basic::Error::Syntax(x) => Self::Syntax(x),
+        }
+    }
+}
+
 impl<T: Debug> Display for Error<T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {

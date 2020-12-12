@@ -113,7 +113,7 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
 
     #[inline]
     fn visit_seq<A: de::SeqAccess<'de>>(self, mut acc: A) -> Result<Self::Value, A::Error> {
-        let mut seq = Vec::with_capacity(acc.size_hint().unwrap_or(0));
+        let mut seq = Vec::new();
 
         while let Some(elem) = acc.next_element()? {
             seq.push(elem);
@@ -124,7 +124,7 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
 
     #[inline]
     fn visit_map<A: de::MapAccess<'de>>(self, mut acc: A) -> Result<Self::Value, A::Error> {
-        let mut map = Vec::<(Value, Value)>::with_capacity(acc.size_hint().unwrap_or(0));
+        let mut map = Vec::<(Value, Value)>::new();
 
         while let Some(kv) = acc.next_entry()? {
             map.push(kv);

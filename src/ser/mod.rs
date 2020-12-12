@@ -6,7 +6,6 @@ mod error;
 
 use crate::basic::*;
 use crate::io::Write;
-use crate::value::Float;
 pub use error::Error;
 
 use alloc::string::ToString;
@@ -14,66 +13,66 @@ use core::convert::TryFrom;
 
 use serde::{ser, Serialize as _};
 
-struct Encoder<T: Write>(T);
+struct Serializer<W: Write>(Encoder<W>);
 
-impl<T: Write> Encoder<T> {
+impl<W: Write> Serializer<W> {
     #[inline]
-    fn save(&mut self, title: Title) -> Result<(), Error<T::Error>> {
-        self.0.write_all(&[title.into()])?;
-        self.0.write_all(title.1.as_ref())?;
-        Ok(())
-    }
-
-    #[inline]
-    fn bignum(&mut self, negative: bool, v: u128) -> Result<(), Error<T::Error>> {
+    fn bignum(&mut self, negative: bool, v: u128) -> Result<(), W::Error> {
         if let Ok(v) = u64::try_from(v) {
-            return self.save(Title(
-                match negative {
-                    false => Major::Positive,
-                    true => Major::Negative,
-                },
-                Minor::from(v),
-            ));
+            return match negative {
+                false => self.0.encode(Header::Positive(v)),
+                true => self.0.encode(Header::Negative(v)),
+            };
         }
 
         let bytes = v.to_be_bytes();
         let length = bytes.iter().skip_while(|x| **x == 0).count();
 
-        self.save(match negative {
-            false => Title::TAG_BIGPOS,
-            true => Title::TAG_BIGNEG,
-        })?;
+        match negative {
+            false => self.0.encode(Header::Tag(TAG_BIGPOS))?,
+            true => self.0.encode(Header::Tag(TAG_BIGNEG))?,
+        }
 
-        self.save(Title(Major::Bytes, length.into()))?;
+        self.0.encode(Header::Bytes(length.into()))?;
         Ok(self.0.write_all(&bytes[bytes.len() - length..])?)
     }
 }
 
-impl<T: Write> From<T> for Encoder<T> {
+impl<W: Write> From<W> for Serializer<W> {
     #[inline]
-    fn from(writer: T) -> Self {
-        Encoder(writer)
+    fn from(writer: W) -> Self {
+        Self(writer.into())
     }
 }
 
-impl<'a, T: Write> ser::Serializer for &'a mut Encoder<T>
+impl<W: Write> From<Encoder<W>> for Serializer<W> {
+    #[inline]
+    fn from(writer: Encoder<W>) -> Self {
+        Self(writer)
+    }
+}
+
+impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W>
 where
-    T::Error: core::fmt::Debug,
+    W::Error: core::fmt::Debug,
 {
     type Ok = ();
-    type Error = Error<T::Error>;
+    type Error = Error<W::Error>;
 
-    type SerializeSeq = CollectionEncoder<'a, T>;
-    type SerializeTuple = CollectionEncoder<'a, T>;
-    type SerializeTupleStruct = CollectionEncoder<'a, T>;
-    type SerializeTupleVariant = CollectionEncoder<'a, T>;
-    type SerializeMap = CollectionEncoder<'a, T>;
-    type SerializeStruct = CollectionEncoder<'a, T>;
-    type SerializeStructVariant = CollectionEncoder<'a, T>;
+    type SerializeSeq = CollectionSerializer<'a, W>;
+    type SerializeTuple = CollectionSerializer<'a, W>;
+    type SerializeTupleStruct = CollectionSerializer<'a, W>;
+    type SerializeTupleVariant = CollectionSerializer<'a, W>;
+    type SerializeMap = CollectionSerializer<'a, W>;
+    type SerializeStruct = CollectionSerializer<'a, W>;
+    type SerializeStructVariant = CollectionSerializer<'a, W>;
 
     #[inline]
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
-        self.save(if v { Title::TRUE } else { Title::FALSE })
+        Ok(self.0.encode(match v {
+            false => Header::Simple(SIMPLE_FALSE),
+            true => Header::Simple(SIMPLE_TRUE),
+        })?)
     }
 
     #[inline]
@@ -93,18 +92,18 @@ where
 
     #[inline]
     fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
-        match v.is_negative() {
-            false => self.save(Title(Major::Positive, Minor::from(v as u64))),
-            true => self.save(Title(Major::Negative, Minor::from(v as u64 ^ !0))),
-        }
+        Ok(self.0.encode(match v.is_negative() {
+            false => Header::Positive(v as u64),
+            true => Header::Negative(v as u64 ^ !0),
+        })?)
     }
 
     #[inline]
     fn serialize_i128(self, v: i128) -> Result<(), Self::Error> {
-        match v.is_negative() {
-            false => self.bignum(false, v as u128),
-            true => self.bignum(true, v as u128 ^ !0),
-        }
+        Ok(match v.is_negative() {
+            false => self.bignum(false, v as u128)?,
+            true => self.bignum(true, v as u128 ^ !0)?,
+        })
     }
 
     #[inline]
@@ -124,12 +123,12 @@ where
 
     #[inline]
     fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
-        self.save(Title(Major::Positive, Minor::from(v)))
+        Ok(self.0.encode(Header::Positive(v))?)
     }
 
     #[inline]
     fn serialize_u128(self, v: u128) -> Result<(), Self::Error> {
-        self.bignum(false, v)
+        Ok(self.bignum(false, v)?)
     }
 
     #[inline]
@@ -139,17 +138,7 @@ where
 
     #[inline]
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-        let v = Float::from(v);
-
-        let minor = if let Ok(x) = half::f16::try_from(v) {
-            Minor::Next2(x.to_be_bytes())
-        } else if let Ok(x) = f32::try_from(v) {
-            Minor::Next4(x.to_be_bytes())
-        } else {
-            Minor::Next8(f64::from(v).to_be_bytes())
-        };
-
-        self.save(Title(Major::Other, minor))
+        Ok(self.0.encode(Header::Float(v))?)
     }
 
     #[inline]
@@ -160,19 +149,19 @@ where
     #[inline]
     fn serialize_str(self, v: &str) -> Result<(), Self::Error> {
         let bytes = v.as_bytes();
-        self.save(Title(Major::Text, bytes.len().into()))?;
+        self.0.encode(Header::Text(bytes.len().into()))?;
         Ok(self.0.write_all(bytes)?)
     }
 
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result<(), Self::Error> {
-        self.save(Title(Major::Bytes, v.len().into()))?;
+        self.0.encode(Header::Bytes(v.len().into()))?;
         Ok(self.0.write_all(v)?)
     }
 
     #[inline]
     fn serialize_none(self) -> Result<(), Self::Error> {
-        self.save(Title::NULL)
+        Ok(self.0.encode(Header::Simple(SIMPLE_NULL))?)
     }
 
     #[inline]
@@ -217,15 +206,15 @@ where
         variant: &'static str,
         value: &U,
     ) -> Result<(), Self::Error> {
-        self.save(Title(Major::Map, 1usize.into()))?;
+        self.0.encode(Header::Map(Some(1)))?;
         self.serialize_str(variant)?;
         value.serialize(self)
     }
 
     #[inline]
     fn serialize_seq(self, length: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        self.save(Title(Major::Array, length.into()))?;
-        Ok(CollectionEncoder {
+        self.0.encode(Header::Array(length))?;
+        Ok(CollectionSerializer {
             encoder: self,
             ending: length.is_none(),
         })
@@ -253,10 +242,10 @@ where
         variant: &'static str,
         length: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        self.save(Title(Major::Map, 1usize.into()))?;
+        self.0.encode(Header::Map(Some(1)))?;
         self.serialize_str(variant)?;
-        self.save(Title(Major::Array, length.into()))?;
-        Ok(CollectionEncoder {
+        self.0.encode(Header::Array(Some(length)))?;
+        Ok(CollectionSerializer {
             encoder: self,
             ending: false,
         })
@@ -264,8 +253,8 @@ where
 
     #[inline]
     fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        self.save(Title(Major::Map, length.into()))?;
-        Ok(CollectionEncoder {
+        self.0.encode(Header::Map(length))?;
+        Ok(CollectionSerializer {
             encoder: self,
             ending: length.is_none(),
         })
@@ -277,8 +266,8 @@ where
         _name: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        self.save(Title(Major::Map, length.into()))?;
-        Ok(CollectionEncoder {
+        self.0.encode(Header::Map(Some(length)))?;
+        Ok(CollectionSerializer {
             encoder: self,
             ending: false,
         })
@@ -292,10 +281,10 @@ where
         variant: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        self.save(Title(Major::Map, 1usize.into()))?;
+        self.0.encode(Header::Map(Some(1)))?;
         self.serialize_str(variant)?;
-        self.save(Title(Major::Map, length.into()))?;
-        Ok(CollectionEncoder {
+        self.0.encode(Header::Map(Some(length)))?;
+        Ok(CollectionSerializer {
             encoder: self,
             ending: false,
         })
@@ -312,7 +301,7 @@ macro_rules! end {
         #[inline]
         fn end(self) -> Result<(), Self::Error> {
             if self.ending {
-                self.encoder.save(Title::BREAK)?;
+                self.encoder.0.encode(Header::Break)?;
             }
 
             Ok(())
@@ -320,12 +309,12 @@ macro_rules! end {
     };
 }
 
-struct CollectionEncoder<'a, T: Write> {
-    encoder: &'a mut Encoder<T>,
+struct CollectionSerializer<'a, T: Write> {
+    encoder: &'a mut Serializer<T>,
     ending: bool,
 }
 
-impl<'a, T: Write> ser::SerializeSeq for CollectionEncoder<'a, T>
+impl<'a, T: Write> ser::SerializeSeq for CollectionSerializer<'a, T>
 where
     T::Error: core::fmt::Debug,
 {
@@ -343,7 +332,7 @@ where
     end!();
 }
 
-impl<'a, T: Write> ser::SerializeTuple for CollectionEncoder<'a, T>
+impl<'a, T: Write> ser::SerializeTuple for CollectionSerializer<'a, T>
 where
     T::Error: core::fmt::Debug,
 {
@@ -361,7 +350,7 @@ where
     end!();
 }
 
-impl<'a, T: Write> ser::SerializeTupleStruct for CollectionEncoder<'a, T>
+impl<'a, T: Write> ser::SerializeTupleStruct for CollectionSerializer<'a, T>
 where
     T::Error: core::fmt::Debug,
 {
@@ -379,7 +368,7 @@ where
     end!();
 }
 
-impl<'a, T: Write> ser::SerializeTupleVariant for CollectionEncoder<'a, T>
+impl<'a, T: Write> ser::SerializeTupleVariant for CollectionSerializer<'a, T>
 where
     T::Error: core::fmt::Debug,
 {
@@ -397,7 +386,7 @@ where
     end!();
 }
 
-impl<'a, T: Write> ser::SerializeMap for CollectionEncoder<'a, T>
+impl<'a, T: Write> ser::SerializeMap for CollectionSerializer<'a, T>
 where
     T::Error: core::fmt::Debug,
 {
@@ -420,7 +409,7 @@ where
     end!();
 }
 
-impl<'a, T: Write> ser::SerializeStruct for CollectionEncoder<'a, T>
+impl<'a, T: Write> ser::SerializeStruct for CollectionSerializer<'a, T>
 where
     T::Error: core::fmt::Debug,
 {
@@ -441,7 +430,7 @@ where
     end!();
 }
 
-impl<'a, T: Write> ser::SerializeStructVariant for CollectionEncoder<'a, T>
+impl<'a, T: Write> ser::SerializeStructVariant for CollectionSerializer<'a, T>
 where
     T::Error: core::fmt::Debug,
 {
@@ -470,7 +459,7 @@ pub fn into_writer<T: ?Sized + ser::Serialize, W: Write>(
 where
     W::Error: core::fmt::Debug,
 {
-    let mut encoder = Encoder::from(writer);
+    let mut encoder = Serializer::from(writer);
     value.serialize(&mut encoder)?;
     Ok(encoder.0.flush()?)
 }
