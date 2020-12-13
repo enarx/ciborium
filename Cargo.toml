@@ -27,6 +27,7 @@ half = "1.6"
 
 [dev-dependencies]
 rstest = "0.6"
+rand = "0.7"
 hex = "0.4"
 
 [features]
