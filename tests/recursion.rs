@@ -11,8 +11,6 @@ use ciborium::{
     value::Value,
 };
 
-use std::io::ErrorKind;
-
 #[test]
 fn array() {
     let bytes = [0x9f; 128 * 1024];
@@ -35,7 +33,7 @@ fn map() {
 fn bytes() {
     let bytes = [0x5f; 128 * 1024];
     match from_reader::<Value, _>(&bytes[..]).unwrap_err() {
-        Error::Io(e) if e.kind() == ErrorKind::UnexpectedEof => (),
+        Error::Io(..) => (),
         e => panic!("incorrect error: {:?}", e),
     }
 }
@@ -44,7 +42,7 @@ fn bytes() {
 fn text() {
     let bytes = [0x7f; 128 * 1024];
     match from_reader::<Value, _>(&bytes[..]).unwrap_err() {
-        Error::Io(e) if e.kind() == ErrorKind::UnexpectedEof => (),
+        Error::Io(..) => (),
         e => panic!("incorrect error: {:?}", e),
     }
 }
