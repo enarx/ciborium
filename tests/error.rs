@@ -50,6 +50,7 @@ fn test(bytes: &str, error: Error<std::io::Error>) {
         Error::Io(..) => panic!(),
         Error::Syntax(x) => ("syntax", Some(x), None),
         Error::Semantic(x, y) => ("semantic", x, Some(y)),
+        Error::RecursionLimitExceeded => panic!(),
     };
 
     let result: Result<Value, _> = from_reader(&bytes[..]);
@@ -57,6 +58,7 @@ fn test(bytes: &str, error: Error<std::io::Error>) {
         Error::Io(..) => panic!(),
         Error::Syntax(x) => ("syntax", Some(x), None),
         Error::Semantic(x, y) => ("semantic", x, Some(y)),
+        Error::RecursionLimitExceeded => panic!(),
     };
 
     assert_eq!(correct, actual);

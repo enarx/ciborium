@@ -24,6 +24,11 @@ pub enum Error<T> {
     /// the offset into the stream indicating the start of the item being
     /// processed when the error occurred.
     Semantic(Option<usize>, String),
+
+    /// The input caused serde to recurse too much
+    ///
+    /// This error prevents a stack overflow.
+    RecursionLimitExceeded,
 }
 
 impl<T> Error<T> {

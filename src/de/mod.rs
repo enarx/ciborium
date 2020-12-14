@@ -13,22 +13,41 @@ use alloc::{string::String, vec::Vec};
 use serde::de::{self, Deserializer as _};
 use serde::forward_to_deserialize_any;
 
-struct Deserializer<T>(T);
+struct Deserializer<'b, R: Read> {
+    decoder: Decoder<R>,
+    scratch: &'b mut [u8],
+    recurse: usize,
+}
 
-impl<'a, 'de, T: Read> de::Deserializer<'de> for Deserializer<&'a mut Decoder<T>>
+impl<'de, 'a, 'b, R: Read> Deserializer<'b, R>
 where
-    T::Error: core::fmt::Debug,
+    R::Error: core::fmt::Debug,
 {
-    type Error = Error<T::Error>;
+    #[inline]
+    fn access(&'a mut self, length: Option<usize>) -> Result<Access<'a, 'b, R>, Error<R::Error>> {
+        if self.recurse == 0 {
+            return Err(Error::RecursionLimitExceeded);
+        }
+
+        self.recurse -= 1;
+        Ok(Access {
+            parent: self,
+            length,
+        })
+    }
+}
+
+impl<'de, 'a, 'b, R: Read> de::Deserializer<'de> for &'a mut Deserializer<'b, R>
+where
+    R::Error: core::fmt::Debug,
+{
+    type Error = Error<R::Error>;
 
     #[inline]
     fn deserialize_any<V: de::Visitor<'de>>(self, v: V) -> Result<V::Value, Self::Error> {
-        let mut scratch = [0u8; 4096];
-
         loop {
-            let offset = self.0.offset();
-
-            return match self.0.pull(false)? {
+            let offset = self.decoder.offset();
+            return match self.decoder.pull(false)? {
                 Header::Positive(x) => v.visit_u64(x),
                 Header::Negative(x) => match x.leading_zeros() {
                     0 => v.visit_i128(x as i128 ^ !0),
@@ -36,15 +55,15 @@ where
                 },
 
                 Header::Bytes(len) => match len {
-                    Some(len) if len <= scratch.len() => {
-                        self.0.read_exact(&mut scratch[..len])?;
-                        v.visit_bytes(&scratch[..len])
+                    Some(len) if len <= self.scratch.len() => {
+                        self.decoder.read_exact(&mut self.scratch[..len])?;
+                        v.visit_bytes(&self.scratch[..len])
                     }
 
                     len => {
                         let mut buffer = Vec::new();
 
-                        let mut segments = self.0.bytes(len, &mut scratch[..]);
+                        let mut segments = self.decoder.bytes(len, &mut self.scratch[..]);
                         while let Some(mut segment) = segments.next()? {
                             while let Some(chunk) = segment.next()? {
                                 buffer.extend_from_slice(chunk);
@@ -56,9 +75,9 @@ where
                 },
 
                 Header::Text(len) => match len {
-                    Some(len) if len <= scratch.len() => {
-                        self.0.read_exact(&mut scratch[..len])?;
-                        match core::str::from_utf8(&scratch[..len]) {
+                    Some(len) if len <= self.scratch.len() => {
+                        self.decoder.read_exact(&mut self.scratch[..len])?;
+                        match core::str::from_utf8(&self.scratch[..len]) {
                             Ok(s) => v.visit_str(s),
                             Err(..) => Err(Error::Syntax(offset)),
                         }
@@ -67,7 +86,7 @@ where
                     len => {
                         let mut buffer = String::new();
 
-                        let mut segments = self.0.text(len, &mut scratch[..]);
+                        let mut segments = self.decoder.text(len, &mut self.scratch[..]);
                         while let Some(mut segment) = segments.next()? {
                             while let Some(chunk) = segment.next()? {
                                 buffer.push_str(chunk);
@@ -78,12 +97,12 @@ where
                     }
                 },
 
-                Header::Array(len) => v.visit_seq(Deserializer((self.0, len))),
-                Header::Map(len) => v.visit_map(Deserializer((self.0, len))),
+                Header::Array(len) => v.visit_seq(self.access(len)?),
+                Header::Map(len) => v.visit_map(self.access(len)?),
 
                 Header::Tag(TAG_BIGPOS) => {
-                    let offset = self.0.offset();
-                    match self.0.bigint() {
+                    let offset = self.decoder.offset();
+                    match self.decoder.bigint() {
                         Err(None) => Err(Error::semantic(offset, "bigint too large")),
                         Err(Some(e)) => Err(e.into()),
                         Ok(raw) => v.visit_u128(raw),
@@ -91,8 +110,8 @@ where
                 }
 
                 Header::Tag(TAG_BIGNEG) => {
-                    let offset = self.0.offset();
-                    match self.0.bigint() {
+                    let offset = self.decoder.offset();
+                    match self.decoder.bigint() {
                         Err(None) => Err(Error::semantic(offset, "bigint too large")),
                         Err(Some(e)) => Err(e.into()),
                         Ok(raw) => {
@@ -132,9 +151,9 @@ where
 
     #[inline]
     fn deserialize_option<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        match self.0.peek(true)? {
-            Header::Simple(SIMPLE_UNDEFINED) => self.0.dump(),
-            Header::Simple(SIMPLE_NULL) => self.0.dump(),
+        match self.decoder.peek(true)? {
+            Header::Simple(SIMPLE_UNDEFINED) => self.decoder.dump(),
+            Header::Simple(SIMPLE_NULL) => self.decoder.dump(),
             _ => return visitor.visit_some(self),
         }
 
@@ -143,8 +162,8 @@ where
 
     #[inline]
     fn deserialize_unit<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let offset = self.0.offset();
-        match self.0.pull(true)? {
+        let offset = self.decoder.offset();
+        match self.decoder.pull(true)? {
             Header::Simple(SIMPLE_UNDEFINED) => visitor.visit_unit(),
             Header::Simple(SIMPLE_NULL) => visitor.visit_unit(),
             _ => Err(Error::semantic(offset, "expected unit")),
@@ -176,14 +195,14 @@ where
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        let offset = self.0.offset();
-        match self.0.peek(true)? {
-            Header::Map(Some(1)) => self.0.dump(),
-            Header::Text(..) => return visitor.visit_enum(self),
+        let offset = self.decoder.offset();
+        match self.decoder.peek(true)? {
+            Header::Map(Some(1)) => self.decoder.dump(),
+            Header::Text(..) => (),
             _ => return Err(Error::semantic(offset, "expected enum")),
         }
 
-        visitor.visit_enum(self)
+        visitor.visit_enum(self.access(Some(0))?)
     }
 
     #[inline]
@@ -192,60 +211,72 @@ where
     }
 }
 
-impl<'a, 'de, T: Read> de::SeqAccess<'de> for Deserializer<(&'a mut Decoder<T>, Option<usize>)>
+struct Access<'a, 'b, R: Read> {
+    parent: &'a mut Deserializer<'b, R>,
+    length: Option<usize>,
+}
+
+impl<'de, 'a, 'b, R: Read> Drop for Access<'a, 'b, R> {
+    #[inline]
+    fn drop(&mut self) {
+        self.parent.recurse += 1;
+    }
+}
+
+impl<'de, 'a, 'b, R: Read> de::SeqAccess<'de> for Access<'a, 'b, R>
 where
-    T::Error: core::fmt::Debug,
+    R::Error: core::fmt::Debug,
 {
-    type Error = Error<T::Error>;
+    type Error = Error<R::Error>;
 
     #[inline]
     fn next_element_seed<U: de::DeserializeSeed<'de>>(
         &mut self,
         seed: U,
     ) -> Result<Option<U::Value>, Self::Error> {
-        match self.0 .1 {
+        match self.length {
             Some(0) => return Ok(None),
-            Some(x) => self.0 .1 = Some(x - 1),
+            Some(x) => self.length = Some(x - 1),
             None => {
-                if Header::Break == self.0 .0.peek(false)? {
-                    self.0 .0.dump();
+                if Header::Break == self.parent.decoder.peek(false)? {
+                    self.parent.decoder.dump();
                     return Ok(None);
                 }
             }
         }
 
-        seed.deserialize(Deserializer(&mut *self.0 .0)).map(Some)
+        seed.deserialize(&mut *self.parent).map(Some)
     }
 
     #[inline]
     fn size_hint(&self) -> Option<usize> {
-        self.0 .1
+        self.length
     }
 }
 
-impl<'a, 'de, T: Read> de::MapAccess<'de> for Deserializer<(&'a mut Decoder<T>, Option<usize>)>
+impl<'de, 'a, 'b, R: Read> de::MapAccess<'de> for Access<'a, 'b, R>
 where
-    T::Error: core::fmt::Debug,
+    R::Error: core::fmt::Debug,
 {
-    type Error = Error<T::Error>;
+    type Error = Error<R::Error>;
 
     #[inline]
     fn next_key_seed<K: de::DeserializeSeed<'de>>(
         &mut self,
         seed: K,
     ) -> Result<Option<K::Value>, Self::Error> {
-        match self.0 .1 {
+        match self.length {
             Some(0) => return Ok(None),
-            Some(x) => self.0 .1 = Some(x - 1),
+            Some(x) => self.length = Some(x - 1),
             None => {
-                if Header::Break == self.0 .0.peek(false)? {
-                    self.0 .0.dump();
+                if Header::Break == self.parent.decoder.peek(false)? {
+                    self.parent.decoder.dump();
                     return Ok(None);
                 }
             }
         }
 
-        Ok(Some(seed.deserialize(Deserializer(&mut *self.0 .0))?))
+        seed.deserialize(&mut *self.parent).map(Some)
     }
 
     #[inline]
@@ -253,20 +284,20 @@ where
         &mut self,
         seed: V,
     ) -> Result<V::Value, Self::Error> {
-        seed.deserialize(Deserializer(&mut *self.0 .0))
+        seed.deserialize(&mut *self.parent)
     }
 
     #[inline]
     fn size_hint(&self) -> Option<usize> {
-        self.0 .1
+        self.length
     }
 }
 
-impl<'a, 'de, T: Read> de::EnumAccess<'de> for Deserializer<&'a mut Decoder<T>>
+impl<'de, 'a, 'b, R: Read> de::EnumAccess<'de> for Access<'a, 'b, R>
 where
-    T::Error: core::fmt::Debug,
+    R::Error: core::fmt::Debug,
 {
-    type Error = Error<T::Error>;
+    type Error = Error<R::Error>;
     type Variant = Self;
 
     #[inline]
@@ -274,16 +305,16 @@ where
         self,
         seed: V,
     ) -> Result<(V::Value, Self::Variant), Self::Error> {
-        let variant = seed.deserialize(Deserializer(&mut *self.0))?;
+        let variant = seed.deserialize(&mut *self.parent)?;
         Ok((variant, self))
     }
 }
 
-impl<'a, 'de, T: Read> de::VariantAccess<'de> for Deserializer<&'a mut Decoder<T>>
+impl<'de, 'a, 'b, R: Read> de::VariantAccess<'de> for Access<'a, 'b, R>
 where
-    T::Error: core::fmt::Debug,
+    R::Error: core::fmt::Debug,
 {
-    type Error = Error<T::Error>;
+    type Error = Error<R::Error>;
 
     #[inline]
     fn unit_variant(self) -> Result<(), Self::Error> {
@@ -295,7 +326,7 @@ where
         self,
         seed: U,
     ) -> Result<U::Value, Self::Error> {
-        seed.deserialize(self)
+        seed.deserialize(&mut *self.parent)
     }
 
     #[inline]
@@ -304,7 +335,7 @@ where
         _len: usize,
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        self.deserialize_seq(visitor)
+        self.parent.deserialize_any(visitor)
     }
 
     #[inline]
@@ -313,7 +344,7 @@ where
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        self.deserialize_map(visitor)
+        self.parent.deserialize_any(visitor)
     }
 }
 
@@ -323,6 +354,13 @@ pub fn from_reader<'de, T: de::Deserialize<'de>, R: Read>(reader: R) -> Result<T
 where
     R::Error: core::fmt::Debug,
 {
-    let mut io = reader.into();
-    T::deserialize(Deserializer(&mut io))
+    let mut scratch = [0; 4096];
+
+    let mut reader = Deserializer {
+        decoder: reader.into(),
+        scratch: &mut scratch,
+        recurse: 256,
+    };
+
+    T::deserialize(&mut reader)
 }
