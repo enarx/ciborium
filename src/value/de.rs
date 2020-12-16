@@ -175,15 +175,12 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
     }
 
     forward_to_deserialize_any! {
-            i8 i16 i32 i64 i128
-            u8 u16 u32 u64 u128
-            bool f32 f64 char str string bytes byte_buf seq map
-
-    //        option unit unit_struct newtype_struct tuple
-    //        tuple_struct struct enum
-
-            identifier ignored_any
-        }
+        i8 i16 i32 i64 i128
+        u8 u16 u32 u64 u128
+        bool f32 f64 char str string bytes byte_buf seq map
+        struct tuple tuple_struct
+        identifier ignored_any
+    }
 
     #[inline]
     fn deserialize_option<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
@@ -217,35 +214,6 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
         visitor.visit_newtype_struct(self)
-    }
-
-    #[inline]
-    fn deserialize_tuple<V: de::Visitor<'de>>(
-        self,
-        _len: usize,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        self.deserialize_seq(visitor)
-    }
-
-    #[inline]
-    fn deserialize_tuple_struct<V: de::Visitor<'de>>(
-        self,
-        _name: &'static str,
-        _len: usize,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        self.deserialize_seq(visitor)
-    }
-
-    #[inline]
-    fn deserialize_struct<V: de::Visitor<'de>>(
-        self,
-        _name: &'static str,
-        _fields: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        self.deserialize_map(visitor)
     }
 
     #[inline]
