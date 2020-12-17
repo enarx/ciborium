@@ -24,16 +24,18 @@ where
     R::Error: core::fmt::Debug,
 {
     #[inline]
-    fn access(&'a mut self, length: Option<usize>) -> Result<Access<'a, 'b, R>, Error<R::Error>> {
+    fn recurse<V, F: FnOnce(&mut Self) -> Result<V, Error<R::Error>>>(
+        &mut self,
+        func: F,
+    ) -> Result<V, Error<R::Error>> {
         if self.recurse == 0 {
             return Err(Error::RecursionLimitExceeded);
         }
 
         self.recurse -= 1;
-        Ok(Access {
-            parent: self,
-            length,
-        })
+        let result = func(self);
+        self.recurse += 1;
+        result
     }
 }
 
@@ -97,8 +99,8 @@ where
                     }
                 },
 
-                Header::Array(len) => v.visit_seq(self.access(len)?),
-                Header::Map(len) => v.visit_map(self.access(len)?),
+                Header::Array(len) => self.recurse(|me| v.visit_seq(Access(me, len))),
+                Header::Map(len) => self.recurse(|me| v.visit_map(Access(me, len))),
 
                 Header::Tag(TAG_BIGPOS) => {
                     let offset = self.decoder.offset();
@@ -213,7 +215,7 @@ where
                 _ => return Err(Error::semantic(offset, "expected enum")),
             }
 
-            return visitor.visit_enum(self.access(Some(0))?);
+            return self.recurse(|me| visitor.visit_enum(Access(me, Some(0))));
         }
     }
 
@@ -223,17 +225,7 @@ where
     }
 }
 
-struct Access<'a, 'b, R: Read> {
-    parent: &'a mut Deserializer<'b, R>,
-    length: Option<usize>,
-}
-
-impl<'de, 'a, 'b, R: Read> Drop for Access<'a, 'b, R> {
-    #[inline]
-    fn drop(&mut self) {
-        self.parent.recurse += 1;
-    }
-}
+struct Access<'a, 'b, R: Read>(&'a mut Deserializer<'b, R>, Option<usize>);
 
 impl<'de, 'a, 'b, R: Read> de::SeqAccess<'de> for Access<'a, 'b, R>
 where
@@ -246,21 +238,21 @@ where
         &mut self,
         seed: U,
     ) -> Result<Option<U::Value>, Self::Error> {
-        match self.length {
+        match self.1 {
             Some(0) => return Ok(None),
-            Some(x) => self.length = Some(x - 1),
-            None => match self.parent.decoder.pull()? {
+            Some(x) => self.1 = Some(x - 1),
+            None => match self.0.decoder.pull()? {
                 Header::Break => return Ok(None),
-                header => self.parent.decoder.push(header),
+                header => self.0.decoder.push(header),
             },
         }
 
-        seed.deserialize(&mut *self.parent).map(Some)
+        seed.deserialize(&mut *self.0).map(Some)
     }
 
     #[inline]
     fn size_hint(&self) -> Option<usize> {
-        self.length
+        self.1
     }
 }
 
@@ -275,16 +267,16 @@ where
         &mut self,
         seed: K,
     ) -> Result<Option<K::Value>, Self::Error> {
-        match self.length {
+        match self.1 {
             Some(0) => return Ok(None),
-            Some(x) => self.length = Some(x - 1),
-            None => match self.parent.decoder.pull()? {
+            Some(x) => self.1 = Some(x - 1),
+            None => match self.0.decoder.pull()? {
                 Header::Break => return Ok(None),
-                header => self.parent.decoder.push(header),
+                header => self.0.decoder.push(header),
             },
         }
 
-        seed.deserialize(&mut *self.parent).map(Some)
+        seed.deserialize(&mut *self.0).map(Some)
     }
 
     #[inline]
@@ -292,12 +284,12 @@ where
         &mut self,
         seed: V,
     ) -> Result<V::Value, Self::Error> {
-        seed.deserialize(&mut *self.parent)
+        seed.deserialize(&mut *self.0)
     }
 
     #[inline]
     fn size_hint(&self) -> Option<usize> {
-        self.length
+        self.1
     }
 }
 
@@ -313,7 +305,7 @@ where
         self,
         seed: V,
     ) -> Result<(V::Value, Self::Variant), Self::Error> {
-        let variant = seed.deserialize(&mut *self.parent)?;
+        let variant = seed.deserialize(&mut *self.0)?;
         Ok((variant, self))
     }
 }
@@ -334,7 +326,7 @@ where
         self,
         seed: U,
     ) -> Result<U::Value, Self::Error> {
-        seed.deserialize(&mut *self.parent)
+        seed.deserialize(&mut *self.0)
     }
 
     #[inline]
@@ -343,7 +335,7 @@ where
         _len: usize,
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        self.parent.deserialize_any(visitor)
+        self.0.deserialize_any(visitor)
     }
 
     #[inline]
@@ -352,7 +344,7 @@ where
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        self.parent.deserialize_any(visitor)
+        self.0.deserialize_any(visitor)
     }
 }
 
