@@ -147,7 +147,7 @@ where
         char str string
         bytes byte_buf
         seq map
-        struct tuple tuple_struct
+        struct tuple
         identifier ignored_any
     }
 
@@ -216,6 +216,19 @@ where
             }
 
             return self.recurse(|me| visitor.visit_enum(Access(me, Some(0))));
+        }
+    }
+
+    #[inline]
+    fn deserialize_tuple_struct<V: de::Visitor<'de>>(
+        self,
+        name: &'static str,
+        len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        match (name, len) {
+            ("@@TAG@@", 2) => visitor.visit_seq(TagAccess(self, 0)),
+            _ => self.deserialize_any(visitor),
         }
     }
 
@@ -345,6 +358,67 @@ where
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
         self.0.deserialize_any(visitor)
+    }
+}
+
+struct TagAccess<'a, 'b, R: Read>(&'a mut Deserializer<'b, R>, usize);
+
+impl<'de, 'a, 'b, R: Read> de::Deserializer<'de> for &mut TagAccess<'a, 'b, R>
+where
+    R::Error: core::fmt::Debug,
+{
+    type Error = Error<R::Error>;
+
+    #[inline]
+    fn deserialize_any<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let offset = self.0.decoder.offset();
+
+        match self.0.decoder.pull()? {
+            Header::Tag(x) => visitor.visit_u64(x),
+            _ => Err(Error::semantic(offset, "expected tag")),
+        }
+    }
+
+    forward_to_deserialize_any! {
+        i8 i16 i32 i64 i128
+        u8 u16 u32 u64 u128
+        bool f32 f64
+        char str string
+        bytes byte_buf
+        seq map
+        struct tuple tuple_struct
+        identifier ignored_any
+        option unit unit_struct newtype_struct enum
+    }
+}
+
+impl<'de, 'a, 'b, R: Read> de::SeqAccess<'de> for TagAccess<'a, 'b, R>
+where
+    R::Error: core::fmt::Debug,
+{
+    type Error = Error<R::Error>;
+
+    #[inline]
+    fn next_element_seed<U: de::DeserializeSeed<'de>>(
+        &mut self,
+        seed: U,
+    ) -> Result<Option<U::Value>, Self::Error> {
+        self.1 += 1;
+
+        match self.1 {
+            1 => seed.deserialize(self).map(Some),
+            2 => seed.deserialize(&mut *self.0).map(Some),
+            _ => Ok(None),
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Option<usize> {
+        Some(match self.1 {
+            0 => 2,
+            1 => 1,
+            _ => 0,
+        })
     }
 }
 

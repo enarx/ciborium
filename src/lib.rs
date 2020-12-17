@@ -92,12 +92,19 @@
 
 extern crate alloc;
 
+use serde::{Deserialize, Serialize};
+
 mod basic;
 mod io;
 
 pub mod de;
 pub mod ser;
 pub mod value;
+
+/// A CBOR tag
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename = "@@TAG@@")]
+pub struct Tag<T>(pub u64, pub T);
 
 /// Build a `Value` conveniently.
 ///

@@ -7,6 +7,13 @@ use alloc::vec::Vec;
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bytes<T>(T);
 
+impl<T> Bytes<T> {
+    /// Create a new `Bytes` instance
+    pub const fn new(value: T) -> Self {
+        Self(value)
+    }
+}
+
 impl<T> From<T> for Bytes<T> {
     fn from(value: T) -> Self {
         Self(value)

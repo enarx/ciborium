@@ -217,6 +217,7 @@ where
         Ok(CollectionSerializer {
             encoder: self,
             ending: length.is_none(),
+            tag: false,
         })
     }
 
@@ -228,10 +229,18 @@ where
     #[inline]
     fn serialize_tuple_struct(
         self,
-        _name: &'static str,
+        name: &'static str,
         length: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        self.serialize_seq(Some(length))
+        match (name, length) {
+            ("@@TAG@@", 2) => Ok(CollectionSerializer {
+                encoder: self,
+                ending: false,
+                tag: true,
+            }),
+
+            (.., len) => self.serialize_seq(Some(len)),
+        }
     }
 
     #[inline]
@@ -248,6 +257,7 @@ where
         Ok(CollectionSerializer {
             encoder: self,
             ending: false,
+            tag: false,
         })
     }
 
@@ -257,6 +267,7 @@ where
         Ok(CollectionSerializer {
             encoder: self,
             ending: length.is_none(),
+            tag: false,
         })
     }
 
@@ -270,6 +281,7 @@ where
         Ok(CollectionSerializer {
             encoder: self,
             ending: false,
+            tag: false,
         })
     }
 
@@ -287,6 +299,7 @@ where
         Ok(CollectionSerializer {
             encoder: self,
             ending: false,
+            tag: false,
         })
     }
 
@@ -312,6 +325,7 @@ macro_rules! end {
 struct CollectionSerializer<'a, T: Write> {
     encoder: &'a mut Serializer<T>,
     ending: bool,
+    tag: bool,
 }
 
 impl<'a, T: Write> ser::SerializeSeq for CollectionSerializer<'a, T>
@@ -362,7 +376,24 @@ where
         &mut self,
         value: &U,
     ) -> Result<(), Self::Error> {
-        value.serialize(&mut *self.encoder)
+        if !self.tag {
+            return value.serialize(&mut *self.encoder);
+        }
+
+        self.tag = false;
+
+        let mut buf = [0u8; 9];
+        let mut ser = Serializer::from(&mut buf[..]);
+        match value.serialize(&mut ser) {
+            Ok(()) => (),
+            Err(..) => return Err(Error::Value("expected tag".into())),
+        }
+
+        let mut dec = Decoder::from(&buf[..]);
+        match dec.pull() {
+            Ok(Header::Positive(tag)) => Ok(self.encoder.0.encode(Header::Tag(tag))?),
+            _ => Err(Error::Value("expected tag".into())),
+        }
     }
 
     end!();
