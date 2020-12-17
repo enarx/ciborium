@@ -47,7 +47,7 @@ where
     fn deserialize_any<V: de::Visitor<'de>>(self, v: V) -> Result<V::Value, Self::Error> {
         loop {
             let offset = self.decoder.offset();
-            return match self.decoder.pull(false)? {
+            return match self.decoder.pull()? {
                 Header::Positive(x) => v.visit_u64(x),
                 Header::Negative(x) => match x.leading_zeros() {
                     0 => v.visit_i128(x as i128 ^ !0),
@@ -151,22 +151,30 @@ where
 
     #[inline]
     fn deserialize_option<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        match self.decoder.peek(true)? {
-            Header::Simple(SIMPLE_UNDEFINED) => self.decoder.dump(),
-            Header::Simple(SIMPLE_NULL) => self.decoder.dump(),
-            _ => return visitor.visit_some(self),
+        loop {
+            return match self.decoder.pull()? {
+                Header::Simple(SIMPLE_UNDEFINED) => visitor.visit_none(),
+                Header::Simple(SIMPLE_NULL) => visitor.visit_none(),
+                Header::Tag(..) => continue,
+                header => {
+                    self.decoder.push(header);
+                    visitor.visit_some(self)
+                }
+            };
         }
-
-        visitor.visit_none()
     }
 
     #[inline]
     fn deserialize_unit<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let offset = self.decoder.offset();
-        match self.decoder.pull(true)? {
-            Header::Simple(SIMPLE_UNDEFINED) => visitor.visit_unit(),
-            Header::Simple(SIMPLE_NULL) => visitor.visit_unit(),
-            _ => Err(Error::semantic(offset, "expected unit")),
+        loop {
+            let offset = self.decoder.offset();
+
+            return match self.decoder.pull()? {
+                Header::Simple(SIMPLE_UNDEFINED) => visitor.visit_unit(),
+                Header::Simple(SIMPLE_NULL) => visitor.visit_unit(),
+                Header::Tag(..) => continue,
+                _ => Err(Error::semantic(offset, "expected unit")),
+            };
         }
     }
 
@@ -195,14 +203,18 @@ where
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        let offset = self.decoder.offset();
-        match self.decoder.peek(true)? {
-            Header::Map(Some(1)) => self.decoder.dump(),
-            Header::Text(..) => (),
-            _ => return Err(Error::semantic(offset, "expected enum")),
-        }
+        loop {
+            let offset = self.decoder.offset();
 
-        visitor.visit_enum(self.access(Some(0))?)
+            match self.decoder.pull()? {
+                Header::Tag(..) => continue,
+                Header::Map(Some(1)) => (),
+                header @ Header::Text(..) => self.decoder.push(header),
+                _ => return Err(Error::semantic(offset, "expected enum")),
+            }
+
+            return visitor.visit_enum(self.access(Some(0))?);
+        }
     }
 
     #[inline]
@@ -237,12 +249,10 @@ where
         match self.length {
             Some(0) => return Ok(None),
             Some(x) => self.length = Some(x - 1),
-            None => {
-                if Header::Break == self.parent.decoder.peek(false)? {
-                    self.parent.decoder.dump();
-                    return Ok(None);
-                }
-            }
+            None => match self.parent.decoder.pull()? {
+                Header::Break => return Ok(None),
+                header => self.parent.decoder.push(header),
+            },
         }
 
         seed.deserialize(&mut *self.parent).map(Some)
@@ -268,12 +278,10 @@ where
         match self.length {
             Some(0) => return Ok(None),
             Some(x) => self.length = Some(x - 1),
-            None => {
-                if Header::Break == self.parent.decoder.peek(false)? {
-                    self.parent.decoder.dump();
-                    return Ok(None);
-                }
-            }
+            None => match self.parent.decoder.pull()? {
+                Header::Break => return Ok(None),
+                header => self.parent.decoder.push(header),
+            },
         }
 
         seed.deserialize(&mut *self.parent).map(Some)

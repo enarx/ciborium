@@ -137,7 +137,7 @@ impl<'a, R: Read, P: Parser> Segments<'a, R, P> {
     pub fn next(&mut self) -> Result<Option<Segment<R, P>>, Error<R::Error>> {
         while self.buffer.is_some() {
             let offset = self.reader.offset();
-            match self.reader.pull(false)? {
+            match self.reader.pull()? {
                 Header::Break if self.nested == 1 => return Ok(None),
                 Header::Break if self.nested > 1 => self.nested -= 1,
                 header => match (self.unwrap)(header) {

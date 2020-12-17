@@ -26,8 +26,8 @@ impl<T> From<T> for Error<T> {
 pub trait Itemizer<T> {
     type Error;
 
-    fn peek(&mut self, skip_tag: bool) -> Result<T, Self::Error>;
-    fn pull(&mut self, skip_tag: bool) -> Result<T, Self::Error>;
+    fn pull(&mut self) -> Result<T, Self::Error>;
+    fn push(&mut self, item: T);
 }
 
 pub struct Decoder<R: Read> {
@@ -63,54 +63,49 @@ impl<R: Read> Itemizer<Title> for Decoder<R> {
     type Error = Error<R::Error>;
 
     #[inline]
-    fn peek(&mut self, skip_tag: bool) -> Result<Title, Self::Error> {
-        let title = self.pull(skip_tag)?;
-        self.push(title);
-        Ok(title)
-    }
-
-    #[inline]
-    fn pull(&mut self, skip_tag: bool) -> Result<Title, Self::Error> {
+    fn pull(&mut self) -> Result<Title, Self::Error> {
         if let Some(title) = self.buffer.take() {
             self.offset += title.1.as_ref().len() + 1;
 
-            if title.0 != Major::Tag || !skip_tag {
+            if title.0 != Major::Tag {
                 return Ok(title);
             }
         }
 
-        loop {
-            let mut prefix = [0u8; 1];
-            self.read_exact(&mut prefix[..])?;
+        let mut prefix = [0u8; 1];
+        self.read_exact(&mut prefix[..])?;
 
-            let major = match prefix[0] >> 5 {
-                0 => Major::Positive,
-                1 => Major::Negative,
-                2 => Major::Bytes,
-                3 => Major::Text,
-                4 => Major::Array,
-                5 => Major::Map,
-                6 => Major::Tag,
-                7 => Major::Other,
-                _ => unreachable!(),
-            };
+        let major = match prefix[0] >> 5 {
+            0 => Major::Positive,
+            1 => Major::Negative,
+            2 => Major::Bytes,
+            3 => Major::Text,
+            4 => Major::Array,
+            5 => Major::Map,
+            6 => Major::Tag,
+            7 => Major::Other,
+            _ => unreachable!(),
+        };
 
-            let mut minor = match prefix[0] & 0b00011111 {
-                x if x < 24 => Minor::This(x),
-                24 => Minor::Next1([0; 1]),
-                25 => Minor::Next2([0; 2]),
-                26 => Minor::Next4([0; 4]),
-                27 => Minor::Next8([0; 8]),
-                31 => Minor::More,
-                _ => return Err(Error::Syntax(self.offset - 1)),
-            };
+        let mut minor = match prefix[0] & 0b00011111 {
+            x if x < 24 => Minor::This(x),
+            24 => Minor::Next1([0; 1]),
+            25 => Minor::Next2([0; 2]),
+            26 => Minor::Next4([0; 4]),
+            27 => Minor::Next8([0; 8]),
+            31 => Minor::More,
+            _ => return Err(Error::Syntax(self.offset - 1)),
+        };
 
-            self.read_exact(minor.as_mut())?;
+        self.read_exact(minor.as_mut())?;
+        Ok(Title(major, minor))
+    }
 
-            if major != Major::Tag || !skip_tag {
-                return Ok(Title(major, minor));
-            }
-        }
+    #[inline]
+    fn push(&mut self, item: Title) {
+        assert!(self.buffer.is_none());
+        self.buffer = Some(item);
+        self.offset -= item.1.as_ref().len() + 1;
     }
 }
 
@@ -118,33 +113,19 @@ impl<R: Read> Itemizer<Header> for Decoder<R> {
     type Error = Error<R::Error>;
 
     #[inline]
-    fn peek(&mut self, skip_tag: bool) -> Result<Header, Self::Error> {
+    fn pull(&mut self) -> Result<Header, Self::Error> {
         let offset = self.offset;
-        let title: Title = self.peek(skip_tag)?;
+        let title: Title = self.pull()?;
         title.try_into().map_err(|_| Error::Syntax(offset))
     }
 
     #[inline]
-    fn pull(&mut self, skip_tag: bool) -> Result<Header, Self::Error> {
-        let offset = self.offset;
-        let title: Title = self.pull(skip_tag)?;
-        title.try_into().map_err(|_| Error::Syntax(offset))
+    fn push(&mut self, item: Header) {
+        self.push(Title::from(item))
     }
 }
 
 impl<R: Read> Decoder<R> {
-    #[inline]
-    fn push(&mut self, title: Title) {
-        assert!(self.buffer.is_none());
-        self.buffer = Some(title);
-        self.offset -= title.1.as_ref().len() + 1;
-    }
-
-    #[inline]
-    pub fn dump(&mut self) {
-        self.buffer = None;
-    }
-
     #[inline]
     pub fn offset(&mut self) -> usize {
         self.offset
@@ -156,7 +137,7 @@ impl<R: Read> Decoder<R> {
         len: Option<usize>,
         buf: &'a mut [u8],
     ) -> Segments<'a, R, Bytes> {
-        self.push(Header::Bytes(len).into());
+        self.push(Header::Bytes(len));
         Segments::new(self, buf, |header| match header {
             Header::Bytes(len) => Ok(len),
             _ => Err(()),
@@ -165,7 +146,7 @@ impl<R: Read> Decoder<R> {
 
     #[inline]
     pub fn text<'a>(&'a mut self, len: Option<usize>, buf: &'a mut [u8]) -> Segments<'a, R, Text> {
-        self.push(Header::Text(len).into());
+        self.push(Header::Text(len));
         Segments::new(self, buf, |header| match header {
             Header::Text(len) => Ok(len),
             _ => Err(()),
@@ -177,7 +158,7 @@ impl<R: Read> Decoder<R> {
         let mut buffer = 0u128.to_ne_bytes();
         let offset = self.offset;
 
-        match self.pull(false)? {
+        match self.pull()? {
             Header::Bytes(len) => {
                 let mut scratch = 0u128.to_ne_bytes();
                 let mut index = 0;
