@@ -15,29 +15,6 @@ use serde::{ser, Serialize as _};
 
 struct Serializer<W: Write>(Encoder<W>);
 
-impl<W: Write> Serializer<W> {
-    #[inline]
-    fn bignum(&mut self, negative: bool, v: u128) -> Result<(), W::Error> {
-        if let Ok(v) = u64::try_from(v) {
-            return match negative {
-                false => self.0.encode(Header::Positive(v)),
-                true => self.0.encode(Header::Negative(v)),
-            };
-        }
-
-        let bytes = v.to_be_bytes();
-        let length = bytes.iter().skip_while(|x| **x == 0).count();
-
-        match negative {
-            false => self.0.encode(Header::Tag(TAG_BIGPOS))?,
-            true => self.0.encode(Header::Tag(TAG_BIGNEG))?,
-        }
-
-        self.0.encode(Header::Bytes(length.into()))?;
-        Ok(self.0.write_all(&bytes[bytes.len() - length..])?)
-    }
-}
-
 impl<W: Write> From<W> for Serializer<W> {
     #[inline]
     fn from(writer: W) -> Self {
@@ -100,10 +77,30 @@ where
 
     #[inline]
     fn serialize_i128(self, v: i128) -> Result<(), Self::Error> {
-        Ok(match v.is_negative() {
-            false => self.bignum(false, v as u128)?,
-            true => self.bignum(true, v as u128 ^ !0)?,
-        })
+        let (tag, raw) = match v.is_negative() {
+            false => (TAG_BIGPOS, v as u128),
+            true => (TAG_BIGNEG, v as u128 ^ !0),
+        };
+
+        loop {
+            return Ok(self.0.encode(match (tag, u64::try_from(raw)) {
+                (TAG_BIGPOS, Ok(x)) => Header::Positive(x),
+                (TAG_BIGNEG, Ok(x)) => Header::Negative(x),
+                _ => break,
+            })?);
+        }
+
+        let bytes = raw.to_be_bytes();
+
+        // Skip leading zeros.
+        let mut slice = &bytes[..];
+        while slice.len() > 0 && slice[0] == 0 {
+            slice = &slice[1..];
+        }
+
+        self.0.encode(Header::Tag(tag))?;
+        self.0.encode(Header::Bytes(Some(slice.len())))?;
+        Ok(self.0.write_all(slice)?)
     }
 
     #[inline]
@@ -128,7 +125,21 @@ where
 
     #[inline]
     fn serialize_u128(self, v: u128) -> Result<(), Self::Error> {
-        Ok(self.bignum(false, v)?)
+        if let Ok(x) = u64::try_from(v) {
+            return self.serialize_u64(x);
+        }
+
+        let bytes = v.to_be_bytes();
+
+        // Skip leading zeros.
+        let mut slice = &bytes[..];
+        while slice.len() > 0 && slice[0] == 0 {
+            slice = &slice[1..];
+        }
+
+        self.0.encode(Header::Tag(TAG_BIGPOS))?;
+        self.0.encode(Header::Bytes(Some(slice.len())))?;
+        Ok(self.0.write_all(slice)?)
     }
 
     #[inline]
@@ -229,36 +240,38 @@ where
     #[inline]
     fn serialize_tuple_struct(
         self,
-        name: &'static str,
+        _name: &'static str,
         length: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        match (name, length) {
-            ("@@TAG@@", 2) => Ok(CollectionSerializer {
-                encoder: self,
-                ending: false,
-                tag: true,
-            }),
-
-            (.., len) => self.serialize_seq(Some(len)),
-        }
+        self.serialize_seq(Some(length))
     }
 
     #[inline]
     fn serialize_tuple_variant(
         self,
-        _name: &'static str,
+        name: &'static str,
         _index: u32,
         variant: &'static str,
         length: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        self.0.encode(Header::Map(Some(1)))?;
-        self.serialize_str(variant)?;
-        self.0.encode(Header::Array(Some(length)))?;
-        Ok(CollectionSerializer {
-            encoder: self,
-            ending: false,
-            tag: false,
-        })
+        match (name, variant) {
+            ("@@TAG@@", "@@TAG@@") => Ok(CollectionSerializer {
+                encoder: self,
+                ending: false,
+                tag: true,
+            }),
+
+            _ => {
+                self.0.encode(Header::Map(Some(1)))?;
+                self.serialize_str(variant)?;
+                self.0.encode(Header::Array(Some(length)))?;
+                Ok(CollectionSerializer {
+                    encoder: self,
+                    ending: false,
+                    tag: false,
+                })
+            }
+        }
     }
 
     #[inline]
@@ -376,24 +389,7 @@ where
         &mut self,
         value: &U,
     ) -> Result<(), Self::Error> {
-        if !self.tag {
-            return value.serialize(&mut *self.encoder);
-        }
-
-        self.tag = false;
-
-        let mut buf = [0u8; 9];
-        let mut ser = Serializer::from(&mut buf[..]);
-        match value.serialize(&mut ser) {
-            Ok(()) => (),
-            Err(..) => return Err(Error::Value("expected tag".into())),
-        }
-
-        let mut dec = Decoder::from(&buf[..]);
-        match dec.pull() {
-            Ok(Header::Positive(tag)) => Ok(self.encoder.0.encode(Header::Tag(tag))?),
-            _ => Err(Error::Value("expected tag".into())),
-        }
+        value.serialize(&mut *self.encoder)
     }
 
     end!();
@@ -411,7 +407,15 @@ where
         &mut self,
         value: &U,
     ) -> Result<(), Self::Error> {
-        value.serialize(&mut *self.encoder)
+        if !self.tag {
+            return value.serialize(&mut *self.encoder);
+        }
+
+        self.tag = false;
+        match value.serialize(crate::tag::Serializer) {
+            Ok(x) => Ok(self.encoder.0.encode(Header::Tag(x))?),
+            _ => Err(Error::Value("expected tag".into())),
+        }
     }
 
     end!();

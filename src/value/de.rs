@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{Bytes, Error, Integer, Value};
+use crate::basic::{TAG_BIGNEG, TAG_BIGPOS};
 
 use alloc::{string::String, vec::Vec};
 use core::convert::TryFrom;
 use core::iter::Peekable;
 
 use serde::de::{self, Deserializer as _};
-use serde::forward_to_deserialize_any;
 
 impl<'a> From<Integer> for de::Unexpected<'a> {
     #[inline]
@@ -34,6 +34,7 @@ impl<'a> From<&'a Value> for de::Unexpected<'a> {
             Value::Array(..) => Self::Seq,
             Value::Map(..) => Self::Map,
             Value::Null => Self::Other("null"),
+            Value::Tag(..) => Self::Other("tag"),
         }
     }
 }
@@ -132,6 +133,36 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
 
         Ok(Value::Map(map))
     }
+
+    #[inline]
+    fn visit_enum<A: de::EnumAccess<'de>>(self, acc: A) -> Result<Self::Value, A::Error> {
+        use serde::de::VariantAccess;
+
+        struct Inner;
+
+        impl<'de> serde::de::Visitor<'de> for Inner {
+            type Value = Value;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                write!(formatter, "a valid CBOR item")
+            }
+
+            #[inline]
+            fn visit_seq<A: de::SeqAccess<'de>>(self, mut acc: A) -> Result<Self::Value, A::Error> {
+                let tag: u64 = acc
+                    .next_element()?
+                    .ok_or(de::Error::custom("expected tag"))?;
+                let val = acc
+                    .next_element()?
+                    .ok_or(de::Error::custom("expected val"))?;
+                Ok(Value::Tag(tag, Box::new(val)))
+            }
+        }
+
+        let (name, data): (String, _) = acc.variant()?;
+        assert_eq!("@@TAG@@", name);
+        data.tuple_variant(2, Inner)
+    }
 }
 
 impl<'de> de::Deserialize<'de> for Value {
@@ -142,6 +173,37 @@ impl<'de> de::Deserialize<'de> for Value {
 }
 
 struct Deserializer<T>(T);
+
+impl<'a, 'de> Deserializer<&'a Value> {
+    fn integer<N: TryFrom<Integer>>(&self, kind: &'static str) -> Result<N, Error> {
+        fn raw(value: &Value) -> Result<u128, Error> {
+            let mut buffer = 0u128.to_ne_bytes();
+            let length = buffer.len();
+
+            let bytes = match value {
+                Value::Bytes(x) if x.len() <= length => x,
+                _ => return Err(de::Error::invalid_type(value.into(), &"bytes")),
+            };
+
+            buffer[length - bytes.len()..].copy_from_slice(bytes);
+            Ok(u128::from_be_bytes(buffer))
+        }
+
+        let integer = match self.0 {
+            Value::Integer(x) => *x,
+            Value::Tag(t, v) if *t == TAG_BIGPOS => raw(v)?.into(),
+            Value::Tag(t, v) if *t == TAG_BIGNEG => {
+                let val = i128::try_from(raw(v)?)
+                    .map(|x| x ^ 10)
+                    .or_else(|_| Err(de::Error::invalid_type(self.0.into(), &"i128")))?;
+                val.into()
+            }
+            _ => return Err(de::Error::invalid_type(self.0.into(), &"(big)int")),
+        };
+
+        N::try_from(integer).or_else(|_| Err(de::Error::invalid_type(self.0.into(), &kind)))
+    }
+}
 
 impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
     type Error = Error;
@@ -155,6 +217,12 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
             Value::Map(x) => visitor.visit_map(Deserializer(x.iter().peekable())),
             Value::Bool(x) => visitor.visit_bool(*x),
             Value::Null => visitor.visit_none(),
+
+            Value::Tag(t, v) => {
+                let parent: Deserializer<&Value> = Deserializer(&*v);
+                let access = crate::tag::TagAccess::new(parent, *t);
+                visitor.visit_enum(access)
+            }
 
             Value::Integer(x) => {
                 if let Ok(x) = u64::try_from(*x) {
@@ -174,12 +242,190 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
         }
     }
 
-    forward_to_deserialize_any! {
-        i8 i16 i32 i64 i128
-        u8 u16 u32 u64 u128
-        bool f32 f64 char str string bytes byte_buf seq map
-        struct tuple tuple_struct
-        identifier ignored_any
+    #[inline]
+    fn deserialize_bool<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let mut value = self.0;
+        while let Value::Tag(.., v) = value {
+            value = v;
+        }
+
+        match value {
+            Value::Bool(x) => visitor.visit_bool(*x),
+            _ => Err(de::Error::invalid_type(value.into(), &"bool")),
+        }
+    }
+
+    #[inline]
+    fn deserialize_f32<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_f64(visitor)
+    }
+
+    #[inline]
+    fn deserialize_f64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let mut value = self.0;
+        while let Value::Tag(.., v) = value {
+            value = v;
+        }
+
+        match value {
+            Value::Float(x) => visitor.visit_f64(x.clone().into()),
+            _ => Err(de::Error::invalid_type(value.into(), &"f64")),
+        }
+    }
+
+    fn deserialize_i8<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_i8(self.integer("i8")?)
+    }
+
+    fn deserialize_i16<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_i16(self.integer("i16")?)
+    }
+
+    fn deserialize_i32<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_i32(self.integer("i32")?)
+    }
+
+    fn deserialize_i64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_i64(self.integer("i64")?)
+    }
+
+    fn deserialize_i128<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_i128(self.integer("i128")?)
+    }
+
+    fn deserialize_u8<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_u8(self.integer("u8")?)
+    }
+
+    fn deserialize_u16<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_u16(self.integer("u16")?)
+    }
+
+    fn deserialize_u32<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_u32(self.integer("u32")?)
+    }
+
+    fn deserialize_u64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_u64(self.integer("u64")?)
+    }
+
+    fn deserialize_u128<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_u128(self.integer("u128")?)
+    }
+
+    fn deserialize_char<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let mut value = self.0;
+        while let Value::Tag(.., v) = value {
+            value = v;
+        }
+
+        match value {
+            Value::Text(x) => match x.chars().count() {
+                1 => visitor.visit_char(x.chars().nth(0).unwrap()),
+                _ => Err(de::Error::invalid_type(value.into(), &"char")),
+            }
+
+            _ => Err(de::Error::invalid_type(value.into(), &"char")),
+        }
+    }
+
+    fn deserialize_str<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let mut value = self.0;
+        while let Value::Tag(.., v) = value {
+            value = v;
+        }
+
+        match value {
+            Value::Text(x) => visitor.visit_str(x),
+            _ => Err(de::Error::invalid_type(value.into(), &"str")),
+        }
+    }
+
+    fn deserialize_string<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_str(visitor)
+    }
+
+    fn deserialize_bytes<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let mut value = self.0;
+        while let Value::Tag(.., v) = value {
+            value = v;
+        }
+
+        match value {
+            Value::Bytes(x) => visitor.visit_bytes(x),
+            _ => Err(de::Error::invalid_type(value.into(), &"bytes")),
+        }
+    }
+
+    fn deserialize_byte_buf<V: de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_bytes(visitor)
+    }
+
+    fn deserialize_seq<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let mut value = self.0;
+        while let Value::Tag(.., v) = value {
+            value = v;
+        }
+
+        match value {
+            Value::Array(x) => visitor.visit_seq(Deserializer(x.iter())),
+            _ => Err(de::Error::invalid_type(value.into(), &"array")),
+        }
+    }
+
+    fn deserialize_map<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let mut value = self.0;
+        while let Value::Tag(.., v) = value {
+            value = v;
+        }
+
+        match value {
+            Value::Map(x) => visitor.visit_map(Deserializer(x.iter().peekable())),
+            _ => Err(de::Error::invalid_type(value.into(), &"map")),
+        }
+    }
+
+    fn deserialize_struct<V: de::Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_map(visitor)
+    }
+
+    fn deserialize_tuple<V: de::Visitor<'de>>(
+        self,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V: de::Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_identifier<V: de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_str(visitor)
+    }
+
+    fn deserialize_ignored_any<V: de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_any(visitor)
     }
 
     #[inline]
@@ -224,6 +470,12 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
         match self.0 {
+            Value::Tag(t, v) => {
+                let parent: Deserializer<&Value> = Deserializer(&*v);
+                let access = crate::tag::TagAccess::new(parent, *t);
+                visitor.visit_enum(access)
+            }
+
             Value::Map(x) if x.len() == 1 => visitor.visit_enum(Deserializer(&x[0])),
             x @ Value::Text(..) => visitor.visit_enum(Deserializer(x)),
             _ => Err(de::Error::invalid_type(self.0.into(), &"map")),

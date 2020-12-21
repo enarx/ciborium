@@ -9,9 +9,46 @@ use crate::io::Read;
 pub use error::Error;
 
 use alloc::{string::String, vec::Vec};
+use core::convert::TryFrom;
 
-use serde::de::{self, Deserializer as _};
-use serde::forward_to_deserialize_any;
+use serde::{de, de::Deserializer as _, forward_to_deserialize_any};
+
+trait Expected<E: de::Error> {
+    fn expected(self, kind: &'static str) -> E;
+}
+
+impl<E: de::Error> Expected<E> for Header {
+    #[inline]
+    fn expected(self, kind: &'static str) -> E {
+        de::Error::invalid_type(self.into(), &kind)
+    }
+}
+
+impl<'a> From<Header> for de::Unexpected<'a> {
+    #[inline]
+    fn from(value: Header) -> Self {
+        match value {
+            Header::Positive(x) => Self::Unsigned(x),
+            Header::Negative(x) => Self::Signed(x as i64 ^ !0),
+            Header::Bytes(..) => Self::Other("bytes"),
+            Header::Text(..) => Self::Other("string"),
+
+            Header::Array(..) => Self::Seq,
+            Header::Map(..) => Self::Map,
+
+            Header::Tag(..) => Self::Other("tag"),
+
+            Header::Simple(SIMPLE_FALSE) => Self::Bool(false),
+            Header::Simple(SIMPLE_TRUE) => Self::Bool(true),
+            Header::Simple(SIMPLE_NULL) => Self::Other("null"),
+            Header::Simple(SIMPLE_UNDEFINED) => Self::Other("undefined"),
+            Header::Simple(..) => Self::Other("simple"),
+
+            Header::Float(x) => Self::Float(x),
+            Header::Break => Self::Other("break"),
+        }
+    }
+}
 
 struct Deserializer<'b, R: Read> {
     decoder: Decoder<R>,
@@ -37,6 +74,36 @@ where
         self.recurse += 1;
         result
     }
+
+    #[inline]
+    fn integer(&mut self, mut header: Option<Header>) -> Result<(bool, u128), Error<R::Error>> {
+        loop {
+            let header = match header.take() {
+                Some(h) => h,
+                None => self.decoder.pull()?,
+            };
+
+            let neg = match header {
+                Header::Positive(x) => return Ok((false, x.into())),
+                Header::Negative(x) => return Ok((true, x.into())),
+                Header::Tag(TAG_BIGPOS) => false,
+                Header::Tag(TAG_BIGNEG) => true,
+                Header::Tag(..) => continue,
+                header => return Err(header.expected("integer")),
+            };
+
+            let mut buffer = 0u128.to_ne_bytes();
+
+            return match self.decoder.pull()? {
+                Header::Bytes(Some(len)) if len <= 16 => {
+                    self.decoder.read_exact(&mut buffer[16 - len..])?;
+                    Ok((neg, u128::from_be_bytes(buffer)))
+                }
+
+                h => Err(h.expected("128-bit bigint")),
+            };
+        }
+    }
 }
 
 impl<'de, 'a, 'b, R: Read> de::Deserializer<'de> for &'a mut Deserializer<'b, R>
@@ -46,109 +113,351 @@ where
     type Error = Error<R::Error>;
 
     #[inline]
-    fn deserialize_any<V: de::Visitor<'de>>(self, v: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_any<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let header = self.decoder.pull()?;
+        self.decoder.push(header);
+
+        match header {
+            Header::Positive(..) => self.deserialize_u64(visitor),
+            Header::Negative(x) => match i64::try_from(x) {
+                Ok(..) => self.deserialize_i64(visitor),
+                Err(..) => self.deserialize_i128(visitor),
+            },
+
+            Header::Bytes(len) => match len {
+                Some(len) if len <= self.scratch.len() => self.deserialize_bytes(visitor),
+                _ => self.deserialize_byte_buf(visitor),
+            },
+
+            Header::Text(len) => match len {
+                Some(len) if len <= self.scratch.len() => self.deserialize_str(visitor),
+                _ => self.deserialize_string(visitor),
+            },
+
+            Header::Array(..) => self.deserialize_seq(visitor),
+            Header::Map(..) => self.deserialize_map(visitor),
+
+            Header::Tag(tag) => {
+                let _: Header = self.decoder.pull()?;
+
+                // Peek at the next item.
+                let header = self.decoder.pull()?;
+                self.decoder.push(header);
+
+                // If it is bytes, capture the length.
+                let len = match header {
+                    Header::Bytes(x) => x,
+                    _ => None,
+                };
+
+                match (tag, len) {
+                    (TAG_BIGPOS, Some(len)) | (TAG_BIGNEG, Some(len)) if len <= 16 => {
+                        let result = match self.integer(Some(Header::Tag(tag)))? {
+                            (false, raw) => return visitor.visit_u128(raw),
+                            (true, raw) => i128::try_from(raw).map(|x| x ^ !0),
+                        };
+
+                        match result {
+                            Ok(x) => visitor.visit_i128(x),
+                            Err(..) => Err(de::Error::custom("integer too large")),
+                        }
+                    }
+
+                    _ => self.recurse(|me| {
+                        let access = crate::tag::TagAccess::new(me, tag);
+                        visitor.visit_enum(access)
+                    }),
+                }
+            }
+
+            Header::Float(..) => self.deserialize_f64(visitor),
+
+            Header::Simple(SIMPLE_FALSE) => self.deserialize_bool(visitor),
+            Header::Simple(SIMPLE_TRUE) => self.deserialize_bool(visitor),
+            Header::Simple(SIMPLE_NULL) => self.deserialize_option(visitor),
+            Header::Simple(SIMPLE_UNDEFINED) => self.deserialize_option(visitor),
+            h @ Header::Simple(..) => Err(h.expected("known simple value")),
+
+            h @ Header::Break => Err(h.expected("non-break")),
+        }
+    }
+
+    #[inline]
+    fn deserialize_bool<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
             let offset = self.decoder.offset();
+
             return match self.decoder.pull()? {
-                Header::Positive(x) => v.visit_u64(x),
-                Header::Negative(x) => match x.leading_zeros() {
-                    0 => v.visit_i128(x as i128 ^ !0),
-                    _ => v.visit_i64(x as i64 ^ !0),
-                },
-
-                Header::Bytes(len) => match len {
-                    Some(len) if len <= self.scratch.len() => {
-                        self.decoder.read_exact(&mut self.scratch[..len])?;
-                        v.visit_bytes(&self.scratch[..len])
-                    }
-
-                    len => {
-                        let mut buffer = Vec::new();
-
-                        let mut segments = self.decoder.bytes(len, &mut self.scratch[..]);
-                        while let Some(mut segment) = segments.next()? {
-                            while let Some(chunk) = segment.next()? {
-                                buffer.extend_from_slice(chunk);
-                            }
-                        }
-
-                        v.visit_byte_buf(buffer)
-                    }
-                },
-
-                Header::Text(len) => match len {
-                    Some(len) if len <= self.scratch.len() => {
-                        self.decoder.read_exact(&mut self.scratch[..len])?;
-                        match core::str::from_utf8(&self.scratch[..len]) {
-                            Ok(s) => v.visit_str(s),
-                            Err(..) => Err(Error::Syntax(offset)),
-                        }
-                    }
-
-                    len => {
-                        let mut buffer = String::new();
-
-                        let mut segments = self.decoder.text(len, &mut self.scratch[..]);
-                        while let Some(mut segment) = segments.next()? {
-                            while let Some(chunk) = segment.next()? {
-                                buffer.push_str(chunk);
-                            }
-                        }
-
-                        v.visit_string(buffer)
-                    }
-                },
-
-                Header::Array(len) => self.recurse(|me| v.visit_seq(Access(me, len))),
-                Header::Map(len) => self.recurse(|me| v.visit_map(Access(me, len))),
-
-                Header::Tag(TAG_BIGPOS) => {
-                    let offset = self.decoder.offset();
-                    match self.decoder.bigint() {
-                        Err(None) => Err(Error::semantic(offset, "bigint too large")),
-                        Err(Some(e)) => Err(e.into()),
-                        Ok(raw) => v.visit_u128(raw),
-                    }
-                }
-
-                Header::Tag(TAG_BIGNEG) => {
-                    let offset = self.decoder.offset();
-                    match self.decoder.bigint() {
-                        Err(None) => Err(Error::semantic(offset, "bigint too large")),
-                        Err(Some(e)) => Err(e.into()),
-                        Ok(raw) => {
-                            if raw.leading_zeros() == 0 {
-                                return Err(Error::semantic(offset, "bigint too large"));
-                            }
-
-                            v.visit_i128(raw as i128 ^ !0)
-                        }
-                    }
-                }
-
                 Header::Tag(..) => continue,
-
-                Header::Float(x) => v.visit_f64(x),
-                Header::Simple(SIMPLE_FALSE) => v.visit_bool(false),
-                Header::Simple(SIMPLE_TRUE) => v.visit_bool(true),
-                Header::Simple(SIMPLE_NULL) => v.visit_none(),
-                Header::Simple(SIMPLE_UNDEFINED) => v.visit_none(),
-
-                Header::Simple(..) => Err(Error::semantic(offset, "unknown simple value")),
-                Header::Break => Err(Error::semantic(offset, "unexpected break")),
+                Header::Simple(SIMPLE_FALSE) => visitor.visit_bool(false),
+                Header::Simple(SIMPLE_TRUE) => visitor.visit_bool(true),
+                _ => Err(Error::semantic(offset, "expected bool")),
             };
         }
     }
 
-    forward_to_deserialize_any! {
-        i8 i16 i32 i64 i128
-        u8 u16 u32 u64 u128
-        bool f32 f64
-        char str string
-        bytes byte_buf
-        seq map
-        struct tuple
-        identifier ignored_any
+    #[inline]
+    fn deserialize_f32<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_f64(visitor)
+    }
+
+    #[inline]
+    fn deserialize_f64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        loop {
+            return match self.decoder.pull()? {
+                Header::Tag(..) => continue,
+                Header::Float(x) => visitor.visit_f64(x),
+                h => Err(h.expected("float")),
+            };
+        }
+    }
+
+    fn deserialize_i8<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_i16<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_i32<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_i64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let result = match self.integer(None)? {
+            (false, raw) => i64::try_from(raw),
+            (true, raw) => i64::try_from(raw).map(|x| x ^ !0),
+        };
+
+        match result {
+            Ok(x) => visitor.visit_i64(x),
+            Err(..) => Err(de::Error::custom("integer too large")),
+        }
+    }
+
+    fn deserialize_i128<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let result = match self.integer(None)? {
+            (false, raw) => i128::try_from(raw),
+            (true, raw) => i128::try_from(raw).map(|x| x ^ !0),
+        };
+
+        match result {
+            Ok(x) => visitor.visit_i128(x),
+            Err(..) => Err(de::Error::custom("integer too large")),
+        }
+    }
+
+    fn deserialize_u8<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_u64(visitor)
+    }
+
+    fn deserialize_u16<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_u64(visitor)
+    }
+
+    fn deserialize_u32<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.deserialize_u64(visitor)
+    }
+
+    fn deserialize_u64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let result = match self.integer(None)? {
+            (false, raw) => u64::try_from(raw),
+            (true, ..) => return Err(de::Error::custom("unexpected negative integer")),
+        };
+
+        match result {
+            Ok(x) => visitor.visit_u64(x),
+            Err(..) => Err(de::Error::custom("integer too large")),
+        }
+    }
+
+    fn deserialize_u128<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        match self.integer(None)? {
+            (false, raw) => visitor.visit_u128(raw),
+            (true, ..) => Err(de::Error::custom("unexpected negative integer")),
+        }
+    }
+
+    fn deserialize_char<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        loop {
+            let offset = self.decoder.offset();
+            let header = self.decoder.pull()?;
+
+            return match header {
+                Header::Tag(..) => continue,
+
+                Header::Text(Some(len)) if len <= 4 => {
+                    let mut buf = [0u8; 4];
+                    self.decoder.read_exact(&mut buf[..len])?;
+
+                    match core::str::from_utf8(&buf[..len]) {
+                        Ok(s) => match s.chars().count() {
+                            1 => visitor.visit_char(s.chars().nth(0).unwrap()),
+                            _ => Err(header.expected("char")),
+                        },
+                        Err(..) => Err(Error::Syntax(offset)),
+                    }
+                }
+
+                _ => Err(header.expected("char")),
+            };
+        }
+    }
+
+    fn deserialize_str<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        loop {
+            let offset = self.decoder.offset();
+
+            return match self.decoder.pull()? {
+                Header::Tag(..) => continue,
+
+                Header::Text(Some(len)) if len <= self.scratch.len() => {
+                    self.decoder.read_exact(&mut self.scratch[..len])?;
+
+                    match core::str::from_utf8(&self.scratch[..len]) {
+                        Ok(s) => visitor.visit_str(s),
+                        Err(..) => Err(Error::Syntax(offset)),
+                    }
+                }
+
+                header => Err(header.expected("str")),
+            };
+        }
+    }
+
+    fn deserialize_string<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        loop {
+            return match self.decoder.pull()? {
+                Header::Tag(..) => continue,
+
+                Header::Text(len) => {
+                    let mut buffer = String::new();
+
+                    let mut segments = self.decoder.text(len, &mut self.scratch[..]);
+                    while let Some(mut segment) = segments.next()? {
+                        while let Some(chunk) = segment.next()? {
+                            buffer.push_str(chunk);
+                        }
+                    }
+
+                    visitor.visit_string(buffer)
+                }
+
+                header => Err(header.expected("string")),
+            };
+        }
+    }
+
+    fn deserialize_bytes<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        loop {
+            return match self.decoder.pull()? {
+                Header::Tag(..) => continue,
+
+                Header::Bytes(Some(len)) if len <= self.scratch.len() => {
+                    self.decoder.read_exact(&mut self.scratch[..len])?;
+                    visitor.visit_bytes(&self.scratch[..len])
+                }
+
+                header => Err(header.expected("bytes")),
+            };
+        }
+    }
+
+    fn deserialize_byte_buf<V: de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        loop {
+            return match self.decoder.pull()? {
+                Header::Tag(..) => continue,
+
+                Header::Bytes(len) => {
+                    let mut buffer = Vec::new();
+
+                    let mut segments = self.decoder.bytes(len, &mut self.scratch[..]);
+                    while let Some(mut segment) = segments.next()? {
+                        while let Some(chunk) = segment.next()? {
+                            buffer.extend_from_slice(chunk);
+                        }
+                    }
+
+                    visitor.visit_byte_buf(buffer)
+                }
+
+                header => Err(header.expected("expected byte buffer")),
+            };
+        }
+    }
+
+    fn deserialize_seq<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        loop {
+            return match self.decoder.pull()? {
+                Header::Tag(..) => continue,
+
+                Header::Array(len) => self.recurse(|me| {
+                    let access = Access(me, len);
+                    visitor.visit_seq(access)
+                }),
+
+                header => Err(header.expected("array")),
+            };
+        }
+    }
+
+    fn deserialize_map<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        loop {
+            return match self.decoder.pull()? {
+                Header::Tag(..) => continue,
+
+                Header::Map(len) => self.recurse(|me| {
+                    let access = Access(me, len);
+                    visitor.visit_map(access)
+                }),
+
+                header => Err(header.expected("map")),
+            };
+        }
+    }
+
+    fn deserialize_struct<V: de::Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_map(visitor)
+    }
+
+    fn deserialize_tuple<V: de::Visitor<'de>>(
+        self,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V: de::Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_identifier<V: de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_str(visitor)
+    }
+
+    fn deserialize_ignored_any<V: de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        self.deserialize_any(visitor)
     }
 
     #[inline]
@@ -169,13 +478,11 @@ where
     #[inline]
     fn deserialize_unit<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
-            let offset = self.decoder.offset();
-
             return match self.decoder.pull()? {
                 Header::Simple(SIMPLE_UNDEFINED) => visitor.visit_unit(),
                 Header::Simple(SIMPLE_NULL) => visitor.visit_unit(),
                 Header::Tag(..) => continue,
-                _ => Err(Error::semantic(offset, "expected unit")),
+                header => Err(header.expected("unit")),
             };
         }
     }
@@ -201,34 +508,29 @@ where
     #[inline]
     fn deserialize_enum<V: de::Visitor<'de>>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
         loop {
-            let offset = self.decoder.offset();
-
             match self.decoder.pull()? {
-                Header::Tag(..) => continue,
+                Header::Tag(..) if name != "@@TAG@@" => continue,
+                Header::Tag(tag) => {
+                    return self.recurse(|me| {
+                        let access = crate::tag::TagAccess::new(me, tag);
+                        visitor.visit_enum(access)
+                    })
+                }
+
                 Header::Map(Some(1)) => (),
                 header @ Header::Text(..) => self.decoder.push(header),
-                _ => return Err(Error::semantic(offset, "expected enum")),
+                header => return Err(header.expected("enum")),
             }
 
-            return self.recurse(|me| visitor.visit_enum(Access(me, Some(0))));
-        }
-    }
-
-    #[inline]
-    fn deserialize_tuple_struct<V: de::Visitor<'de>>(
-        self,
-        name: &'static str,
-        len: usize,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        match (name, len) {
-            ("@@TAG@@", 2) => visitor.visit_seq(TagAccess(self, 0)),
-            _ => self.deserialize_any(visitor),
+            return self.recurse(|me| {
+                let access = Access(me, Some(0));
+                visitor.visit_enum(access)
+            });
         }
     }
 

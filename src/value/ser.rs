@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{Bytes, Error, Value};
+use crate::Tag;
 
 use alloc::{vec, vec::Vec};
 use core::convert::TryFrom;
@@ -15,6 +16,8 @@ impl ser::Serialize for Value {
             Value::Bool(x) => serializer.serialize_bool(*x),
             Value::Text(x) => serializer.serialize_str(x),
             Value::Null => serializer.serialize_unit(),
+
+            Value::Tag(t, v) => Tag(*t, v).serialize(serializer),
 
             Value::Float(x) => {
                 if let Ok(x) = f32::try_from(*x) {
@@ -86,9 +89,15 @@ macro_rules! mkserialize {
     };
 }
 
+struct Tagged {
+    tag: Option<u64>,
+    val: Option<Value>,
+}
+
 struct Named<T> {
     name: &'static str,
     data: T,
+    tag: Option<Tagged>,
 }
 
 struct Map {
@@ -204,7 +213,7 @@ impl ser::Serializer for Serializer<()> {
     #[inline]
     fn serialize_tuple_variant(
         self,
-        _name: &'static str,
+        name: &'static str,
         _index: u32,
         variant: &'static str,
         length: usize,
@@ -212,6 +221,14 @@ impl ser::Serializer for Serializer<()> {
         Ok(Serializer(Named {
             name: variant,
             data: Vec::with_capacity(length),
+            tag: match (name, variant) {
+                ("@@TAG@@", "@@TAG@@") => Some(Tagged {
+                    tag: None,
+                    val: None
+                }),
+
+                _ => None,
+            }
         }))
     }
 
@@ -243,6 +260,7 @@ impl ser::Serializer for Serializer<()> {
         Ok(Serializer(Named {
             name: variant,
             data: Vec::with_capacity(length),
+            tag: None,
         }))
     }
 }
@@ -301,13 +319,32 @@ impl<'a> ser::SerializeTupleVariant for Serializer<Named<Vec<Value>>> {
 
     #[inline]
     fn serialize_field<U: ?Sized + ser::Serialize>(&mut self, value: &U) -> Result<(), Error> {
-        self.0.data.push(Value::serialized(&value)?);
+        match self.0.tag.as_mut() {
+            Some(tag) => match tag.tag {
+                None => match value.serialize(crate::tag::Serializer) {
+                    Ok(t) => tag.tag = Some(t),
+                    Err(..) => return Err(ser::Error::custom("expected tag")),
+                },
+
+                Some(..) => tag.val = Some(Value::serialized(value)?),
+            },
+
+            None => self.0.data.push(Value::serialized(value)?),
+        }
+
         Ok(())
     }
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        Ok(vec![(self.0.name.into(), self.0.data.into())].into())
+        Ok(match self.0.tag {
+            Some(tag) => match tag {
+                Tagged { tag: Some(t), val: Some(v) } => Value::Tag(t, Box::new(v)),
+                _ => return Err(ser::Error::custom("invalid tag input"))
+            }
+
+            None => vec![(self.0.name.into(), self.0.data.into())].into()
+        })
     }
 }
 

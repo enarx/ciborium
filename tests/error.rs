@@ -24,24 +24,6 @@ use rstest::rstest;
 
     // Invalid UTF-8 in a string continuation
     case("7F62C328FF", Error::Syntax(1)),
-
-    // Positive BigNum too large
-    case(
-        "C254FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-        Error::Semantic(Some(1), "bigint too large".into())
-    ),
-
-    // Negative BigNum too large
-    case(
-        "C354FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-        Error::Semantic(Some(1), "bigint too large".into())
-    ),
-
-    // Negative BigNum too large (by one bit)
-    case(
-        "C35080000000000000000000000000000000",
-        Error::Semantic(Some(1), "bigint too large".into())
-    ),
 )]
 fn test(bytes: &str, error: Error<std::io::Error>) {
     let bytes = hex::decode(bytes).unwrap();

@@ -66,10 +66,7 @@ impl<R: Read> Itemizer<Title> for Decoder<R> {
     fn pull(&mut self) -> Result<Title, Self::Error> {
         if let Some(title) = self.buffer.take() {
             self.offset += title.1.as_ref().len() + 1;
-
-            if title.0 != Major::Tag {
-                return Ok(title);
-            }
+            return Ok(title);
         }
 
         let mut prefix = [0u8; 1];
@@ -151,44 +148,5 @@ impl<R: Read> Decoder<R> {
             Header::Text(len) => Ok(len),
             _ => Err(()),
         })
-    }
-
-    #[inline]
-    pub(crate) fn bigint(&mut self) -> Result<u128, Option<Error<R::Error>>> {
-        let mut buffer = 0u128.to_ne_bytes();
-        let offset = self.offset;
-
-        match self.pull()? {
-            Header::Bytes(len) => {
-                let mut scratch = 0u128.to_ne_bytes();
-                let mut index = 0;
-
-                let mut segments = self.bytes(len, &mut scratch[..]);
-                while let Some(mut segment) = segments.next()? {
-                    while let Some(chunk) = segment.next()? {
-                        for byte in chunk {
-                            // Skip leading zeroes.
-                            if index == 0 && *byte == 0 {
-                                continue;
-                            }
-
-                            // The bigint is too large for the buffer.
-                            if index >= buffer.len() {
-                                return Err(None);
-                            }
-
-                            buffer[index] = *byte;
-                            index += 1;
-                        }
-                    }
-                }
-
-                // Swap the leading big endian bytes to little endian.
-                buffer[..index].reverse();
-                Ok(u128::from_le_bytes(buffer))
-            }
-
-            _ => Err(Some(Error::Syntax(offset))),
-        }
     }
 }

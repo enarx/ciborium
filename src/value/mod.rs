@@ -39,6 +39,9 @@ pub enum Value {
     /// Null
     Null,
 
+    /// Tag
+    Tag(u64, Box<Value>),
+
     /// An array
     Array(Vec<Value>),
 

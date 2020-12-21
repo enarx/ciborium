@@ -109,7 +109,17 @@ use rstest::rstest;
 
     ////// The following test are NOT values from the RFC
     // Test that we can decode BigNums with leading zeroes (see RFC section 2.4.2)
-    case(cbor!(1u8).unwrap(), "C2540000000000000000000000000000000000000001", true),
+    case(
+        Value::Tag(2,
+            Value::Bytes(
+                hex::decode("0000000000000000000000000000000000000001")
+                .unwrap()
+                .into()
+            ).into()
+        ),
+        "C2540000000000000000000000000000000000000001",
+        true
+    ),
 )]
 fn test(value: Value, bytes: &str, alternate: bool) {
     let bytes = hex::decode(bytes).unwrap();
