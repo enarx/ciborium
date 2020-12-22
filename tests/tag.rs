@@ -2,48 +2,56 @@
 
 extern crate alloc;
 
-use ciborium::{de::from_reader, ser::into_writer, value::Bytes, Tag, value::Value};
+use ciborium::{de::from_reader, ser::into_writer, tag::*, value::Value};
+use rstest::rstest;
+use serde::{Deserialize, Serialize};
 
-const CBOR: &[u8] = b"\xc7\x49\x01\x00\x00\x00\x00\x00\x00\x00\x00";
-const FULL: Tag<Bytes<&[u8]>> = Tag(7, Bytes::new(b"\x01\x00\x00\x00\x00\x00\x00\x00\x00"));
+use core::fmt::Debug;
 
-#[test]
-// Test that we can decode the tag.
-fn decode() {
-    let tag: Tag<Bytes<Vec<u8>>> = from_reader(CBOR).unwrap();
-    assert_eq!(FULL.0, tag.0);
-    assert_eq!(FULL.1, tag.1[..].into());
+#[rstest(item, bytes, value, encode, success,
+    case(Captured(Some(6), true), "c6f5", Value::Tag(6, Value::Bool(true).into()), true, true),
+    case(Captured(None, true), "f5", Value::Bool(true), true, true),
 
-    let value = Value::Bytes(CBOR[2..].into());
-    let value = Value::Tag(7, value.into());
+    case(Required::<_, 6>(true), "c6f5", Value::Tag(6, Value::Bool(true).into()), true, true),
+    case(Required::<_, 6>(true), "c7f5", Value::Tag(7, Value::Bool(true).into()), false, false),
+    case(Required::<_, 6>(true), "f5", Value::Bool(true), false, false),
 
-    let tag: Tag<Bytes<Vec<u8>>> = value.deserialized().unwrap();
-    assert_eq!(FULL.0, tag.0);
-    assert_eq!(FULL.1, tag.1[..].into());
-}
+    case(Accepted::<_, 6>(true), "c6f5", Value::Tag(6, Value::Bool(true).into()), true, true),
+    case(Accepted::<_, 6>(true), "c7f5", Value::Tag(7, Value::Bool(true).into()), false, false),
+    case(Accepted::<_, 6>(true), "f5", Value::Bool(true), false, true),
+)]
+fn test<'de, T: Serialize + Deserialize<'de> + Debug + Eq>(
+    item: T,
+    bytes: &str,
+    value: Value,
+    encode: bool,
+    success: bool,
+) {
+    let bytes = hex::decode(bytes).unwrap();
 
-// Test that we can skip the tag.
-#[test]
-fn skip() {
-    let raw: Bytes<Vec<u8>> = from_reader(CBOR).unwrap();
-    assert_eq!(FULL.1, raw[..].into());
+    if encode {
+        // Encode into bytes
+        let mut encoded = Vec::new();
+        into_writer(&item, &mut encoded).unwrap();
+        assert_eq!(bytes, encoded);
 
-    let value = Value::Bytes(CBOR[2..].into());
-    let value = Value::Tag(7, value.into());
+        // Encode into value
+        assert_eq!(value, Value::serialized(&item).unwrap());
+    }
 
-    let raw: Bytes<Vec<u8>> = value.deserialized().unwrap();
-    assert_eq!(FULL.1, raw[..].into());
-}
+    // Decode from bytes
+    match from_reader(&bytes[..]) {
+        Ok(x) if success => assert_eq!(item, x),
+        Ok(..) => panic!("unexpected success"),
+        Err(e) if success => Err(e).unwrap(),
+        Err(..) => (),
+    }
 
-// Test that we can encode the tag.
-#[test]
-fn encode() {
-    let mut byte = Vec::new();
-    into_writer(&FULL, &mut byte).unwrap();
-    assert_eq!(CBOR, byte);
-
-    let value = Value::Bytes(CBOR[2..].into());
-    let value = Value::Tag(7, value.into());
-
-    assert_eq!(value, Value::serialized(&FULL).unwrap());
+    // Decode from value
+    match value.deserialized() {
+        Ok(x) if success => assert_eq!(item, x),
+        Ok(..) => panic!("unexpected success"),
+        Err(e) if success => Err(e).unwrap(),
+        Err(..) => (),
+    }
 }

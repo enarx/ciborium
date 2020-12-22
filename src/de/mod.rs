@@ -164,7 +164,7 @@ where
                     }
 
                     _ => self.recurse(|me| {
-                        let access = crate::tag::TagAccess::new(me, tag);
+                        let access = crate::tag::TagAccess::new(me, Some(tag));
                         visitor.visit_enum(access)
                     }),
                 }
@@ -512,16 +512,24 @@ where
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
+        if name == "@@TAG@@" {
+            let tag = match self.decoder.pull()? {
+                Header::Tag(x) => Some(x),
+                header => {
+                    self.decoder.push(header);
+                    None
+                }
+            };
+
+            return self.recurse(|me| {
+                let access = crate::tag::TagAccess::new(me, tag);
+                visitor.visit_enum(access)
+            });
+        }
+
         loop {
             match self.decoder.pull()? {
-                Header::Tag(..) if name != "@@TAG@@" => continue,
-                Header::Tag(tag) => {
-                    return self.recurse(|me| {
-                        let access = crate::tag::TagAccess::new(me, tag);
-                        visitor.visit_enum(access)
-                    })
-                }
-
+                Header::Tag(..) => continue,
                 Header::Map(Some(1)) => (),
                 header @ Header::Text(..) => self.decoder.push(header),
                 header => return Err(header.expected("enum")),

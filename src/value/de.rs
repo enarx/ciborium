@@ -160,7 +160,7 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
         }
 
         let (name, data): (String, _) = acc.variant()?;
-        assert_eq!("@@TAG@@", name);
+        assert_eq!("@@TAGGED@@", name);
         data.tuple_variant(2, Inner)
     }
 }
@@ -220,7 +220,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
 
             Value::Tag(t, v) => {
                 let parent: Deserializer<&Value> = Deserializer(&*v);
-                let access = crate::tag::TagAccess::new(parent, *t);
+                let access = crate::tag::TagAccess::new(parent, Some(*t));
                 visitor.visit_enum(access)
             }
 
@@ -323,7 +323,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
             Value::Text(x) => match x.chars().count() {
                 1 => visitor.visit_char(x.chars().nth(0).unwrap()),
                 _ => Err(de::Error::invalid_type(value.into(), &"char")),
-            }
+            },
 
             _ => Err(de::Error::invalid_type(value.into(), &"char")),
         }
@@ -465,17 +465,23 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
     #[inline]
     fn deserialize_enum<V: de::Visitor<'de>>(
         self,
-        _name: &'static str,
-        _variants: &'static [&'static str],
+        name: &'static str,
+        variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        match self.0 {
-            Value::Tag(t, v) => {
-                let parent: Deserializer<&Value> = Deserializer(&*v);
-                let access = crate::tag::TagAccess::new(parent, *t);
-                visitor.visit_enum(access)
-            }
+        if name == "@@TAG@@" {
+            let (tag, val) = match self.0 {
+                Value::Tag(t, v) => (Some(*t), v.as_ref()),
+                v => (None, v),
+            };
 
+            let parent: Deserializer<&Value> = Deserializer(&*val);
+            let access = crate::tag::TagAccess::new(parent, tag);
+            return visitor.visit_enum(access);
+        }
+
+        match self.0 {
+            Value::Tag(.., v) => Deserializer(v.as_ref()).deserialize_enum(name, variants, visitor),
             Value::Map(x) if x.len() == 1 => visitor.visit_enum(Deserializer(&x[0])),
             x @ Value::Text(..) => visitor.visit_enum(Deserializer(x)),
             _ => Err(de::Error::invalid_type(self.0.into(), &"map")),

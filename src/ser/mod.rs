@@ -212,13 +212,16 @@ where
     #[inline]
     fn serialize_newtype_variant<U: ?Sized + ser::Serialize>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _index: u32,
         variant: &'static str,
         value: &U,
     ) -> Result<(), Self::Error> {
-        self.0.encode(Header::Map(Some(1)))?;
-        self.serialize_str(variant)?;
+        if name != "@@TAG@@" || variant != "@@UNTAGGED@@" {
+            self.0.encode(Header::Map(Some(1)))?;
+            self.serialize_str(variant)?;
+        }
+
         value.serialize(self)
     }
 
@@ -255,7 +258,7 @@ where
         length: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
         match (name, variant) {
-            ("@@TAG@@", "@@TAG@@") => Ok(CollectionSerializer {
+            ("@@TAG@@", "@@TAGGED@@") => Ok(CollectionSerializer {
                 encoder: self,
                 ending: false,
                 tag: true,

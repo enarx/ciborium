@@ -1,42 +1,106 @@
+//! Contains helper types for dealing with CBOR tags
+
 use serde::{de, de::Error as _, forward_to_deserialize_any, ser, Deserialize, Serialize};
 
 #[serde(rename = "@@TAG@@")]
 #[derive(Deserialize, Serialize)]
-enum Foo<T> {
-    #[serde(rename = "@@TAG@@")]
-    Bar(u64, T),
+enum Internal<T> {
+    #[serde(rename = "@@UNTAGGED@@")]
+    Untagged(T),
+
+    #[serde(rename = "@@TAGGED@@")]
+    Tagged(u64, T),
 }
 
-/// A CBOR tag
+/// An optional CBOR tag and its data item
+///
+/// No semantic evaluation of the tag is made.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Tag<V>(pub u64, pub V);
+pub struct Captured<V>(pub Option<u64>, pub V);
 
-impl<'de, V: Deserialize<'de>> Deserialize<'de> for Tag<V> {
+impl<'de, V: Deserialize<'de>> Deserialize<'de> for Captured<V> {
+    #[inline]
     fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        match Foo::deserialize(deserializer)? {
-            Foo::Bar(tag, val) => Ok(Tag(tag, val)),
+        match Internal::deserialize(deserializer)? {
+            Internal::Tagged(t, v) => Ok(Captured(Some(t), v)),
+            Internal::Untagged(v) => Ok(Captured(None, v)),
         }
     }
 }
 
-impl<V: Serialize> Serialize for Tag<V> {
+impl<V: Serialize> Serialize for Captured<V> {
+    #[inline]
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        Foo::Bar(self.0, &self.1).serialize(serializer)
+        match self.0 {
+            Some(tag) => Internal::Tagged(tag, &self.1).serialize(serializer),
+            None => Internal::Untagged(&self.1).serialize(serializer),
+        }
+    }
+}
+
+/// A required CBOR tag
+///
+/// This data type indicates that the specified tag, and **only** that tag,
+/// is required during deserialization. If the tag is missing, deserialization
+/// will fail. The tag will always be emitted during serialization.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Required<V, const TAG: u64>(pub V);
+
+impl<'de, V: Deserialize<'de>, const TAG: u64> Deserialize<'de> for Required<V, TAG> {
+    #[inline]
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match Internal::deserialize(deserializer)? {
+            Internal::Tagged(t, v) if t == TAG => Ok(Required(v)),
+            _ => Err(de::Error::custom("required tag not found")),
+        }
+    }
+}
+
+impl<V: Serialize, const TAG: u64> Serialize for Required<V, TAG> {
+    #[inline]
+    fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Internal::Tagged(TAG, &self.0).serialize(serializer)
+    }
+}
+
+/// An optional CBOR tag
+///
+/// This data type indicates that the specified tag, and **only** that tag,
+/// is accepted, but not required, during deserialization. The tag will always
+/// be emitted during serialization.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Accepted<V, const TAG: u64>(pub V);
+
+impl<'de, V: Deserialize<'de>, const TAG: u64> Deserialize<'de> for Accepted<V, TAG> {
+    #[inline]
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match Internal::deserialize(deserializer)? {
+            Internal::Tagged(t, v) if t == TAG => Ok(Accepted(v)),
+            Internal::Untagged(v) => Ok(Accepted(v)),
+            _ => Err(de::Error::custom("required tag not found")),
+        }
+    }
+}
+
+impl<V: Serialize, const TAG: u64> Serialize for Accepted<V, TAG> {
+    #[inline]
+    fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Internal::Tagged(TAG, &self.0).serialize(serializer)
     }
 }
 
 pub(crate) struct TagAccess<D> {
     parent: Option<D>,
-    tagval: Option<u64>,
-    variant: Option<&'static str>,
+    state: usize,
+    tag: Option<u64>,
 }
 
 impl<D> TagAccess<D> {
-    pub fn new(parent: D, tagval: u64) -> Self {
+    pub fn new(parent: D, tag: Option<u64>) -> Self {
         Self {
             parent: Some(parent),
-            tagval: Some(tagval),
-            variant: Some("@@TAG@@"),
+            state: 0,
+            tag: tag,
         }
     }
 }
@@ -46,12 +110,15 @@ impl<'de, D: de::Deserializer<'de>> de::Deserializer<'de> for &mut TagAccess<D> 
 
     #[inline]
     fn deserialize_any<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        match self.variant.take() {
-            Some(x) => visitor.visit_str(x),
-            None => match self.tagval.take() {
-                Some(x) => visitor.visit_u64(x),
-                None => unreachable!(),
-            },
+        self.state += 1;
+
+        match self.state {
+            1 => visitor.visit_str(match self.tag {
+                Some(..) => "@@TAGGED@@",
+                None => "@@UNTAGGED@@",
+            }),
+
+            _ => visitor.visit_u64(self.tag.unwrap()),
         }
     }
 
@@ -92,10 +159,10 @@ impl<'de, D: de::Deserializer<'de>> de::VariantAccess<'de> for TagAccess<D> {
 
     #[inline]
     fn newtype_variant_seed<U: de::DeserializeSeed<'de>>(
-        self,
-        _seed: U,
+        mut self,
+        seed: U,
     ) -> Result<U::Value, Self::Error> {
-        Err(Self::Error::custom("expected tag"))
+        seed.deserialize(self.parent.take().unwrap())
     }
 
     #[inline]
@@ -125,7 +192,7 @@ impl<'de, D: de::Deserializer<'de>> de::SeqAccess<'de> for TagAccess<D> {
         &mut self,
         seed: T,
     ) -> Result<Option<T::Value>, Self::Error> {
-        if self.variant.is_some() || self.tagval.is_some() {
+        if self.state < 2 {
             return Ok(Some(seed.deserialize(self)?));
         }
 

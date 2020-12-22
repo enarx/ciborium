@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{Bytes, Error, Value};
-use crate::Tag;
 
 use alloc::{vec, vec::Vec};
 use core::convert::TryFrom;
 
-use ::serde::ser::{self, SerializeMap as _, SerializeSeq as _};
+use ::serde::ser::{self, SerializeMap as _, SerializeSeq as _, SerializeTupleVariant as _};
 
 impl ser::Serialize for Value {
     #[inline]
@@ -17,7 +16,12 @@ impl ser::Serialize for Value {
             Value::Text(x) => serializer.serialize_str(x),
             Value::Null => serializer.serialize_unit(),
 
-            Value::Tag(t, v) => Tag(*t, v).serialize(serializer),
+            Value::Tag(t, v) => {
+                let mut acc = serializer.serialize_tuple_variant("@@TAG@@", 0, "@@TAG@@", 2)?;
+                acc.serialize_field(t)?;
+                acc.serialize_field(v)?;
+                acc.end()
+            }
 
             Value::Float(x) => {
                 if let Ok(x) = f32::try_from(*x) {
@@ -183,12 +187,15 @@ impl ser::Serializer for Serializer<()> {
     #[inline]
     fn serialize_newtype_variant<U: ?Sized + ser::Serialize>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _index: u32,
         variant: &'static str,
         value: &U,
     ) -> Result<Value, Error> {
-        Ok(vec![(variant.into(), Value::serialized(value)?)].into())
+        Ok(match (name, variant) {
+            ("@@TAG@@", "@@UNTAGGED@@") => Value::serialized(value)?,
+            _ => vec![(variant.into(), Value::serialized(value)?)].into()
+        })
     }
 
     #[inline]
@@ -222,13 +229,13 @@ impl ser::Serializer for Serializer<()> {
             name: variant,
             data: Vec::with_capacity(length),
             tag: match (name, variant) {
-                ("@@TAG@@", "@@TAG@@") => Some(Tagged {
+                ("@@TAG@@", "@@TAGGED@@") => Some(Tagged {
                     tag: None,
-                    val: None
+                    val: None,
                 }),
 
                 _ => None,
-            }
+            },
         }))
     }
 
@@ -339,11 +346,14 @@ impl<'a> ser::SerializeTupleVariant for Serializer<Named<Vec<Value>>> {
     fn end(self) -> Result<Self::Ok, Self::Error> {
         Ok(match self.0.tag {
             Some(tag) => match tag {
-                Tagged { tag: Some(t), val: Some(v) } => Value::Tag(t, Box::new(v)),
-                _ => return Err(ser::Error::custom("invalid tag input"))
-            }
+                Tagged {
+                    tag: Some(t),
+                    val: Some(v),
+                } => Value::Tag(t, Box::new(v)),
+                _ => return Err(ser::Error::custom("invalid tag input")),
+            },
 
-            None => vec![(self.0.name.into(), self.0.data.into())].into()
+            None => vec![(self.0.name.into(), self.0.data.into())].into(),
         })
     }
 }
