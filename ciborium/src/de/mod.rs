@@ -289,7 +289,7 @@ where
 
                     match core::str::from_utf8(&buf[..len]) {
                         Ok(s) => match s.chars().count() {
-                            1 => visitor.visit_char(s.chars().nth(0).unwrap()),
+                            1 => visitor.visit_char(s.chars().next().unwrap()),
                             _ => Err(header.expected("char")),
                         },
                         Err(..) => Err(Error::Syntax(offset)),
@@ -331,8 +331,8 @@ where
                     let mut buffer = String::new();
 
                     let mut segments = self.decoder.text(len, &mut self.scratch[..]);
-                    while let Some(mut segment) = segments.next()? {
-                        while let Some(chunk) = segment.next()? {
+                    while let Some(mut segment) = segments.pull()? {
+                        while let Some(chunk) = segment.pull()? {
                             buffer.push_str(chunk);
                         }
                     }
@@ -372,8 +372,8 @@ where
                     let mut buffer = Vec::new();
 
                     let mut segments = self.decoder.bytes(len, &mut self.scratch[..]);
-                    while let Some(mut segment) = segments.next()? {
-                        while let Some(chunk) = segment.next()? {
+                    while let Some(mut segment) = segments.pull()? {
+                        while let Some(chunk) = segment.pull()? {
                             buffer.extend_from_slice(chunk);
                         }
                     }

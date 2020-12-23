@@ -82,19 +82,17 @@ where
             true => (tag::BIGNEG, v as u128 ^ !0),
         };
 
-        loop {
-            return Ok(self.0.push(match (tag, u64::try_from(raw)) {
-                (tag::BIGPOS, Ok(x)) => Header::Positive(x),
-                (tag::BIGNEG, Ok(x)) => Header::Negative(x),
-                _ => break,
-            })?);
+        match (tag, u64::try_from(raw)) {
+            (tag::BIGPOS, Ok(x)) => return Ok(self.0.push(Header::Positive(x))?),
+            (tag::BIGNEG, Ok(x)) => return Ok(self.0.push(Header::Negative(x))?),
+            _ => {}
         }
 
         let bytes = raw.to_be_bytes();
 
         // Skip leading zeros.
         let mut slice = &bytes[..];
-        while slice.len() > 0 && slice[0] == 0 {
+        while !slice.is_empty() && slice[0] == 0 {
             slice = &slice[1..];
         }
 
@@ -133,7 +131,7 @@ where
 
         // Skip leading zeros.
         let mut slice = &bytes[..];
-        while slice.len() > 0 && slice[0] == 0 {
+        while !slice.is_empty() && slice[0] == 0 {
             slice = &slice[1..];
         }
 

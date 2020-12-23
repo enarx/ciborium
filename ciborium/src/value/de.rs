@@ -151,10 +151,10 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
             fn visit_seq<A: de::SeqAccess<'de>>(self, mut acc: A) -> Result<Self::Value, A::Error> {
                 let tag: u64 = acc
                     .next_element()?
-                    .ok_or(de::Error::custom("expected tag"))?;
+                    .ok_or_else(|| de::Error::custom("expected tag"))?;
                 let val = acc
                     .next_element()?
-                    .ok_or(de::Error::custom("expected val"))?;
+                    .ok_or_else(|| de::Error::custom("expected val"))?;
                 Ok(Value::Tag(tag, Box::new(val)))
             }
         }
@@ -195,13 +195,13 @@ impl<'a, 'de> Deserializer<&'a Value> {
             Value::Tag(t, v) if *t == tag::BIGNEG => {
                 let val = i128::try_from(raw(v)?)
                     .map(|x| x ^ 10)
-                    .or_else(|_| Err(de::Error::invalid_type(self.0.into(), &"i128")))?;
+                    .map_err(|_| de::Error::invalid_type(self.0.into(), &"i128"))?;
                 val.into()
             }
             _ => return Err(de::Error::invalid_type(self.0.into(), &"(big)int")),
         };
 
-        N::try_from(integer).or_else(|_| Err(de::Error::invalid_type(self.0.into(), &kind)))
+        N::try_from(integer).map_err(|_| de::Error::invalid_type(self.0.into(), &kind))
     }
 }
 
@@ -321,7 +321,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
 
         match value {
             Value::Text(x) => match x.chars().count() {
-                1 => visitor.visit_char(x.chars().nth(0).unwrap()),
+                1 => visitor.visit_char(x.chars().next().unwrap()),
                 _ => Err(de::Error::invalid_type(value.into(), &"char")),
             },
 

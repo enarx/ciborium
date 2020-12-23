@@ -77,8 +77,8 @@
 //!     Header::Text(len) => {
 //!         let mut buffer = [0u8; 7];
 //!         let mut segments = decoder.text(len, &mut buffer[..]);
-//!         while let Some(mut segment) = segments.next().unwrap() {
-//!             while let Some(chunk) = segment.next().unwrap() {
+//!         while let Some(mut segment) = segments.pull().unwrap() {
+//!             while let Some(chunk) = segment.pull().unwrap() {
 //!                  match chunk {
 //!                      "Hello, " if chunks == 0 => chunks = 1,
 //!                      "World!" if chunks == 1 => chunks = 2,

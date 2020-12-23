@@ -100,7 +100,7 @@ impl<D> TagAccess<D> {
         Self {
             parent: Some(parent),
             state: 0,
-            tag: tag,
+            tag,
         }
     }
 }

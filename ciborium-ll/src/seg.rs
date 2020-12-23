@@ -117,11 +117,11 @@ pub struct Segment<'a, R: Read, P: Parser> {
 }
 
 impl<'a, R: Read, P: Parser> Segment<'a, R, P> {
-    /// Return the next parsed chunk within the segment.
+    /// Gets the next parsed chunk within the segment
     ///
     /// Returns `Ok(None)` when all chunks have been read.
     #[inline]
-    pub fn next(&mut self) -> Result<Option<&P::Item>, Error<R::Error>> {
+    pub fn pull(&mut self) -> Result<Option<&P::Item>, Error<R::Error>> {
         use core::cmp::min;
 
         let prev = self.parser.saved();
@@ -175,11 +175,11 @@ impl<'a, R: Read, P: Parser> Segments<'a, R, P> {
         }
     }
 
-    /// Get the next segment in the stream
+    /// Gets the next segment in the stream
     ///
     /// Returns `Ok(None)` at the conclusion of the stream.
     #[inline]
-    pub fn next(&mut self) -> Result<Option<Segment<R, P>>, Error<R::Error>> {
+    pub fn pull(&mut self) -> Result<Option<Segment<R, P>>, Error<R::Error>> {
         while self.buffer.is_some() {
             let offset = self.reader.offset();
             match self.reader.pull()? {
