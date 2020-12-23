@@ -44,4 +44,7 @@ jobs:
           profile: minimal
           override: true
       - run: cargo install cargo-readme
-      - run: cargo readme > README.md && git diff --exit-code
+      - run: cd ciborium-io && cargo readme > README.md
+      - run: cd ciborium-ll && cargo readme > README.md
+      - run: cd ciborium && cargo readme > README.md
+      - run: git diff --exit-code
