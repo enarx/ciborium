@@ -2,7 +2,7 @@
 
 use super::{Bytes, Error, Integer, Value};
 
-use alloc::{string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use core::convert::TryFrom;
 use core::iter::Peekable;
 

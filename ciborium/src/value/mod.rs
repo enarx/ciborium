@@ -15,7 +15,7 @@ pub use error::Error;
 pub use float::{Float, TryFromFloatError};
 pub use integer::Integer;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 
 /// A representation of a dynamic CBOR value that can handled dynamically
 #[non_exhaustive]

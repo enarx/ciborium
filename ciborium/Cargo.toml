@@ -21,7 +21,7 @@ is-it-maintained-open-issues = { repository = "enarx/ciborium" }
 
 [dependencies]
 ciborium-ll = { path = "../ciborium-ll" }
-ciborium-io = { path = "../ciborium-io" }
+ciborium-io = { path = "../ciborium-io", features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 
 [dev-dependencies]

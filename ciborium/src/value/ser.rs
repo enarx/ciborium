@@ -349,7 +349,7 @@ impl<'a> ser::SerializeTupleVariant for Serializer<Named<Vec<Value>>> {
                 Tagged {
                     tag: Some(t),
                     val: Some(v),
-                } => Value::Tag(t, Box::new(v)),
+                } => Value::Tag(t, v.into()),
                 _ => return Err(ser::Error::custom("invalid tag input")),
             },
 
