@@ -728,7 +728,7 @@ where
     }
 }
 
-/// Deserializes as CBOR from a type with [`impl ciborium::serde::de::Read`](crate::serde::de::Read)
+/// Deserializes as CBOR from a type with [`impl ciborium_io::Read`](ciborium_io::Read)
 #[inline]
 pub fn from_reader<'de, T: de::Deserialize<'de>, R: Read>(reader: R) -> Result<T, Error<R::Error>>
 where

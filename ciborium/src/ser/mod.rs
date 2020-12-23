@@ -486,7 +486,7 @@ where
     end!();
 }
 
-/// Serializes as CBOR into a type with [`impl ciborium::ser::Write`](crate::ser::Write)
+/// Serializes as CBOR into a type with [`impl ciborium_io::Write`](ciborium_io::Write)
 #[inline]
 pub fn into_writer<T: ?Sized + ser::Serialize, W: Write>(
     value: &T,
