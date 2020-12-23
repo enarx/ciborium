@@ -4,18 +4,73 @@ use core::convert::TryFrom;
 
 use half::f16;
 
+/// A semantic representation of a CBOR item header
+///
+/// This structure represents the valid values of a CBOR item header and is
+/// used extensively when serializing or deserializing CBOR items. Note well
+/// that this structure **DOES NOT** represent the body (i.e. suffix) of the
+/// CBOR item. You must parse the body yourself based on the contents of the
+/// `Header`. However, utility functions are provided for this (see:
+/// `Decoder::bytes()` and `Decoder::text()`).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Header {
+    /// A positive integer
     Positive(u64),
+
+    /// A negative integer
+    ///
+    /// Note well that this value has all bits inverted from a normal signed
+    /// integer. For example, to convert the `u64` to a `i128` you would do
+    /// this: `neg as i128 ^ !0`.
     Negative(u64),
+
+    /// A floating point value
     Float(f64),
+
+    /// A "simple" value
     Simple(u8),
+
+    /// A tag
     Tag(u64),
+
+    /// The "break" value
+    ///
+    /// This value is used to terminate indefinite length arrays and maps,
+    /// as well as segmented byte or text items.
     Break,
 
+    /// A bytes item
+    ///
+    /// The value contained in this variant indicates the length of the bytes
+    /// which follow or, if `None`, segmented bytes input.
+    ///
+    /// A best practice is to call `Decoder::bytes()` immediately after
+    /// first pulling a bytes item header since this utility function
+    /// encapsulates all the logic needed to handle segmentation.
     Bytes(Option<usize>),
+
+    /// A text item
+    ///
+    /// The value contained in this variant indicates the length of the text
+    /// which follows (in bytes) or, if `None`, segmented text input.
+    ///
+    /// A best practice is to call `Decoder::text()` immediately after
+    /// first pulling a text item header since this utility function
+    /// encapsulates all the logic needed to handle segmentation.
     Text(Option<usize>),
+
+    /// An array item
+    ///
+    /// The value contained in this variant indicates the length of the array
+    /// which follows (in items) or, if `None`, an indefinite length array
+    /// terminated by a "break" value.
     Array(Option<usize>),
+
+    /// An map item
+    ///
+    /// The value contained in this variant indicates the length of the map
+    /// which follows (in item pairs) or, if `None`, an indefinite length map
+    /// terminated by a "break" value.
     Map(Option<usize>),
 }
 
@@ -91,7 +146,7 @@ impl From<Header> for Title {
             },
 
             Header::Float(n64) => {
-                let n16 = half::f16::from_f64(n64);
+                let n16 = f16::from_f64(n64);
                 let n32 = n64 as f32;
 
                 Title(

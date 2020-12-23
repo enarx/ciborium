@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{Bytes, Error, Integer, Value};
-use crate::basic::{TAG_BIGNEG, TAG_BIGPOS};
 
 use alloc::{string::String, vec::Vec};
 use core::convert::TryFrom;
 use core::iter::Peekable;
 
+use ciborium_ll::tag;
 use serde::de::{self, Deserializer as _};
 
 impl<'a> From<Integer> for de::Unexpected<'a> {
@@ -191,8 +191,8 @@ impl<'a, 'de> Deserializer<&'a Value> {
 
         let integer = match self.0 {
             Value::Integer(x) => *x,
-            Value::Tag(t, v) if *t == TAG_BIGPOS => raw(v)?.into(),
-            Value::Tag(t, v) if *t == TAG_BIGNEG => {
+            Value::Tag(t, v) if *t == tag::BIGPOS => raw(v)?.into(),
+            Value::Tag(t, v) if *t == tag::BIGNEG => {
                 let val = i128::try_from(raw(v)?)
                     .map(|x| x ^ 10)
                     .or_else(|_| Err(de::Error::invalid_type(self.0.into(), &"i128")))?;

@@ -1,0 +1,31 @@
+[package]
+name = "ciborium-ll"
+version = "0.1.0"
+authors = ["Nathaniel McCallum <npmccallum@redhat.com>"]
+license = "Apache-2.0"
+edition = "2018"
+homepage = "https://github.com/enarx/ciborium"
+repository = "https://github.com/enarx/ciborium"
+description = "Low-level CBOR codec primitives"
+readme = "README.md"
+keywords = ["cbor"]
+categories = ["data-structures", "embedded", "encoding", "no-std", "parsing"]
+
+[badges]
+# See https://doc.rust-lang.org/cargo/reference/manifest.html#the-badges-section
+github = { repository = "enarx/ciborium", workflow = "test" }
+#github = { repository = "enarx/ciborium", workflow = "lint" }
+maintenance = { status = "actively-developed" }
+is-it-maintained-issue-resolution = { repository = "enarx/ciborium" }
+is-it-maintained-open-issues = { repository = "enarx/ciborium" }
+
+[dependencies]
+ciborium-io = { path = "../ciborium-io" }
+half = "1.6"
+
+[dev-dependencies]
+hex = "0.4"
+
+[features]
+alloc = []
+std = ["alloc"]

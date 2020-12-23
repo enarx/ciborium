@@ -1,20 +1,46 @@
 use super::*;
 
-use crate::io::Read;
+use ciborium_io::Read;
 
 use core::marker::PhantomData;
 
+/// A parser for incoming segments
 pub trait Parser: Default {
+    /// The type of item that is parsed
     type Item: ?Sized;
+
+    /// The parsing error that may occur
     type Error;
 
+    /// The main parsing function
+    ///
+    /// This function processes the incoming bytes and returns the item.
+    ///
+    /// One important detail that **MUST NOT** be overlooked is that the
+    /// parser may save data from a previous parsing attempt. The number of
+    /// bytes saved is indicated by the `Parser::saved()` function. The saved
+    /// bytes will be copied into the beginning of the `bytes` array before
+    /// processing. Therefore, two requirements should be met.
+    ///
+    /// First, the incoming byte slice should be larger than the saved bytes.
+    ///
+    /// Second, the incoming byte slice should contain new bytes only after
+    /// the saved byte prefix.
+    ///
+    /// If both criteria are met, this allows the parser to prepend its saved
+    /// bytes without any additional allocation.
     fn parse<'a>(&mut self, bytes: &'a mut [u8]) -> Result<&'a Self::Item, Self::Error>;
 
+    /// Indicates the number of saved bytes in the parser
     fn saved(&self) -> usize {
         0
     }
 }
 
+/// A bytes parser
+///
+/// No actual processing is performed and the input bytes are directly
+/// returned. This implies that this parser never saves any bytes internally.
 #[derive(Default)]
 pub struct Bytes(());
 
@@ -27,6 +53,11 @@ impl Parser for Bytes {
     }
 }
 
+/// A text parser
+///
+/// This parser converts the input bytes to a `str`. This parser preserves
+/// trailing invalid UTF-8 sequences in the case that chunking fell in the
+/// middle of a valid UTF-8 character.
 #[derive(Default)]
 pub struct Text {
     stored: usize,
@@ -73,6 +104,10 @@ impl Parser for Text {
     }
 }
 
+/// A CBOR segment
+///
+/// This type represents a single bytes or text segment on the wire. It can be
+/// read out in parsed chunks based on the size of the input scratch buffer.
 pub struct Segment<'a, R: Read, P: Parser> {
     reader: &'a mut Decoder<R>,
     buffer: &'a mut [u8],
@@ -82,6 +117,9 @@ pub struct Segment<'a, R: Read, P: Parser> {
 }
 
 impl<'a, R: Read, P: Parser> Segment<'a, R, P> {
+    /// Return the next parsed chunk within the segment.
+    ///
+    /// Returns `Ok(None)` when all chunks have been read.
     #[inline]
     pub fn next(&mut self) -> Result<Option<&P::Item>, Error<R::Error>> {
         use core::cmp::min;
@@ -109,6 +147,10 @@ impl<'a, R: Read, P: Parser> Segment<'a, R, P> {
     }
 }
 
+/// A sequence of CBOR segments
+///
+/// CBOR allows for bytes or text items to be segmented. This type represents
+/// the state of that segmented input stream.
 pub struct Segments<'a, R: Read, P: Parser> {
     reader: &'a mut Decoder<R>,
     buffer: Option<&'a mut [u8]>,
@@ -133,6 +175,9 @@ impl<'a, R: Read, P: Parser> Segments<'a, R, P> {
         }
     }
 
+    /// Get the next segment in the stream
+    ///
+    /// Returns `Ok(None)` at the conclusion of the stream.
     #[inline]
     pub fn next(&mut self) -> Result<Option<Segment<R, P>>, Error<R::Error>> {
         while self.buffer.is_some() {

@@ -93,9 +93,6 @@
 
 extern crate alloc;
 
-mod basic;
-mod io;
-
 pub mod de;
 pub mod ser;
 pub mod tag;

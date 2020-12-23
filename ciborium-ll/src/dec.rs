@@ -1,8 +1,10 @@
 use super::*;
-use crate::io::Read;
+
+use ciborium_io::Read;
 
 use core::convert::TryInto;
 
+/// An error that occurred while decoding
 #[derive(Debug)]
 pub enum Error<T> {
     /// An error occurred while reading bytes
@@ -23,13 +25,11 @@ impl<T> From<T> for Error<T> {
     }
 }
 
-pub trait Itemizer<T> {
-    type Error;
-
-    fn pull(&mut self) -> Result<T, Self::Error>;
-    fn push(&mut self, item: T);
-}
-
+/// A decoder for deserializing CBOR items
+///
+/// This decoder manages the low-level decoding of CBOR items into `Header`
+/// objects. It also contains utility functions for parsing segmented bytes
+/// and text inputs.
 pub struct Decoder<R: Read> {
     reader: R,
     offset: usize,
@@ -59,11 +59,9 @@ impl<R: Read> Read for Decoder<R> {
     }
 }
 
-impl<R: Read> Itemizer<Title> for Decoder<R> {
-    type Error = Error<R::Error>;
-
+impl<R: Read> Decoder<R> {
     #[inline]
-    fn pull(&mut self) -> Result<Title, Self::Error> {
+    fn pull_title(&mut self) -> Result<Title, Error<R::Error>> {
         if let Some(title) = self.buffer.take() {
             self.offset += title.1.as_ref().len() + 1;
             return Ok(title);
@@ -99,41 +97,60 @@ impl<R: Read> Itemizer<Title> for Decoder<R> {
     }
 
     #[inline]
-    fn push(&mut self, item: Title) {
+    fn push_title(&mut self, item: Title) {
         assert!(self.buffer.is_none());
         self.buffer = Some(item);
         self.offset -= item.1.as_ref().len() + 1;
     }
-}
 
-impl<R: Read> Itemizer<Header> for Decoder<R> {
-    type Error = Error<R::Error>;
-
+    /// Pulls the next header from the input
     #[inline]
-    fn pull(&mut self) -> Result<Header, Self::Error> {
+    pub fn pull(&mut self) -> Result<Header, Error<R::Error>> {
         let offset = self.offset;
-        let title: Title = self.pull()?;
-        title.try_into().map_err(|_| Error::Syntax(offset))
+        self.pull_title()?
+            .try_into()
+            .map_err(|_| Error::Syntax(offset))
     }
 
+    /// Push a single header into the input buffer
+    ///
+    /// # Panics
+    ///
+    /// This function panics if called while there is already a header in the
+    /// input buffer. You should take care to call this function only after
+    /// pulling a header to ensure there is nothing in the input buffer.
     #[inline]
-    fn push(&mut self, item: Header) {
-        self.push(Title::from(item))
+    pub fn push(&mut self, item: Header) {
+        self.push_title(Title::from(item))
     }
-}
 
-impl<R: Read> Decoder<R> {
+    /// Gets the current byte offset into the stream
+    ///
+    /// The offset starts at zero when the decoder is created. Therefore, if
+    /// bytes were already read from the reader before the decoder was created,
+    /// you must account for this.
     #[inline]
     pub fn offset(&mut self) -> usize {
         self.offset
     }
 
+    /// Process an incoming bytes item
+    ///
+    /// In CBOR, bytes can be segmented. The logic for this can be a bit tricky,
+    /// so we encapsulate that logic using this function. This function **MUST**
+    /// be called immediately after first pulling a `Header::Bytes(len)` from
+    /// the wire and `len` must be provided to this function from that value.
+    ///
+    /// The `buf` parameter provides a buffer used when reading in the segmented
+    /// bytes. A large buffer will result in fewer calls to read incoming bytes
+    /// at the cost of memory usage. You should consider this trade off when
+    /// deciding the size of your buffer.
     #[inline]
     pub fn bytes<'a>(
         &'a mut self,
         len: Option<usize>,
         buf: &'a mut [u8],
-    ) -> Segments<'a, R, Bytes> {
+    ) -> Segments<'a, R, crate::seg::Bytes> {
         self.push(Header::Bytes(len));
         Segments::new(self, buf, |header| match header {
             Header::Bytes(len) => Ok(len),
@@ -141,8 +158,23 @@ impl<R: Read> Decoder<R> {
         })
     }
 
+    /// Process an incoming text item
+    ///
+    /// In CBOR, text can be segmented. The logic for this can be a bit tricky,
+    /// so we encapsulate that logic using this function. This function **MUST**
+    /// be called immediately after first pulling a `Header::Text(len)` from
+    /// the wire and `len` must be provided to this function from that value.
+    ///
+    /// The `buf` parameter provides a buffer used when reading in the segmented
+    /// text. A large buffer will result in fewer calls to read incoming bytes
+    /// at the cost of memory usage. You should consider this trade off when
+    /// deciding the size of your buffer.
     #[inline]
-    pub fn text<'a>(&'a mut self, len: Option<usize>, buf: &'a mut [u8]) -> Segments<'a, R, Text> {
+    pub fn text<'a>(
+        &'a mut self,
+        len: Option<usize>,
+        buf: &'a mut [u8],
+    ) -> Segments<'a, R, crate::seg::Text> {
         self.push(Header::Text(len));
         Segments::new(self, buf, |header| match header {
             Header::Text(len) => Ok(len),

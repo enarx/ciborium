@@ -194,7 +194,7 @@ impl ser::Serializer for Serializer<()> {
     ) -> Result<Value, Error> {
         Ok(match (name, variant) {
             ("@@TAG@@", "@@UNTAGGED@@") => Value::serialized(value)?,
-            _ => vec![(variant.into(), Value::serialized(value)?)].into()
+            _ => vec![(variant.into(), Value::serialized(value)?)].into(),
         })
     }
 

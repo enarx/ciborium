@@ -2,7 +2,7 @@ on: [push, pull_request]
 name: test
 jobs:
   test:
-    name: test ${{ matrix.toolchain }} ${{ matrix.profile.name }} ${{ matrix.features }}
+    name: test ${{ matrix.toolchain }} ${{ matrix.profile.name }} ${{ matrix.crates.name }} ${{ matrix.crates.feat }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -13,18 +13,16 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: ${{ matrix.profile.flag }} --no-default-features --features=${{ matrix.features }}
+          args: --manifest-path=${{ matrix.crates.name }}/Cargo.toml ${{ matrix.profile.flag }} --no-default-features --features=${{ matrix.crates.feat }}
     strategy:
       fail-fast: false
       matrix:
         toolchain:
-          - 1.40.0
-          - stable
-          - beta
           - nightly
-        features:
-          -
-          - std
+        crates:
+          - {name: ciborium-ll}
+          - {name: ciborium}
+          - {name: ciborium, feat: std}
         profile:
           - {name: debug}
           - {name: release, flag: --release}

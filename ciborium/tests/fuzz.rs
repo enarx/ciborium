@@ -38,7 +38,7 @@ fn fuzz() {
             let mut buffer = [0u8; 32];
 
             for _ in 0..ITERATIONS {
-                let len = rng.gen_range(0, buffer.len());
+                let len = rng.gen_range(0..buffer.len());
                 rng.fill(&mut buffer[..len]);
 
                 writeln!(child, "{}", hex::encode(&buffer[..len])).unwrap();

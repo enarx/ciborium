@@ -4,13 +4,13 @@
 
 mod error;
 
-use crate::basic::*;
-use crate::io::Read;
 pub use error::Error;
 
 use alloc::{string::String, vec::Vec};
 use core::convert::TryFrom;
 
+use ciborium_io::Read;
+use ciborium_ll::*;
 use serde::{de, de::Deserializer as _, forward_to_deserialize_any};
 
 trait Expected<E: de::Error> {
@@ -20,33 +20,29 @@ trait Expected<E: de::Error> {
 impl<E: de::Error> Expected<E> for Header {
     #[inline]
     fn expected(self, kind: &'static str) -> E {
-        de::Error::invalid_type(self.into(), &kind)
-    }
-}
+        de::Error::invalid_type(
+            match self {
+                Header::Positive(x) => de::Unexpected::Unsigned(x),
+                Header::Negative(x) => de::Unexpected::Signed(x as i64 ^ !0),
+                Header::Bytes(..) => de::Unexpected::Other("bytes"),
+                Header::Text(..) => de::Unexpected::Other("string"),
 
-impl<'a> From<Header> for de::Unexpected<'a> {
-    #[inline]
-    fn from(value: Header) -> Self {
-        match value {
-            Header::Positive(x) => Self::Unsigned(x),
-            Header::Negative(x) => Self::Signed(x as i64 ^ !0),
-            Header::Bytes(..) => Self::Other("bytes"),
-            Header::Text(..) => Self::Other("string"),
+                Header::Array(..) => de::Unexpected::Seq,
+                Header::Map(..) => de::Unexpected::Map,
 
-            Header::Array(..) => Self::Seq,
-            Header::Map(..) => Self::Map,
+                Header::Tag(..) => de::Unexpected::Other("tag"),
 
-            Header::Tag(..) => Self::Other("tag"),
+                Header::Simple(simple::FALSE) => de::Unexpected::Bool(false),
+                Header::Simple(simple::TRUE) => de::Unexpected::Bool(true),
+                Header::Simple(simple::NULL) => de::Unexpected::Other("null"),
+                Header::Simple(simple::UNDEFINED) => de::Unexpected::Other("undefined"),
+                Header::Simple(..) => de::Unexpected::Other("simple"),
 
-            Header::Simple(SIMPLE_FALSE) => Self::Bool(false),
-            Header::Simple(SIMPLE_TRUE) => Self::Bool(true),
-            Header::Simple(SIMPLE_NULL) => Self::Other("null"),
-            Header::Simple(SIMPLE_UNDEFINED) => Self::Other("undefined"),
-            Header::Simple(..) => Self::Other("simple"),
-
-            Header::Float(x) => Self::Float(x),
-            Header::Break => Self::Other("break"),
-        }
+                Header::Float(x) => de::Unexpected::Float(x),
+                Header::Break => de::Unexpected::Other("break"),
+            },
+            &kind,
+        )
     }
 }
 
@@ -86,8 +82,8 @@ where
             let neg = match header {
                 Header::Positive(x) => return Ok((false, x.into())),
                 Header::Negative(x) => return Ok((true, x.into())),
-                Header::Tag(TAG_BIGPOS) => false,
-                Header::Tag(TAG_BIGNEG) => true,
+                Header::Tag(tag::BIGPOS) => false,
+                Header::Tag(tag::BIGNEG) => true,
                 Header::Tag(..) => continue,
                 header => return Err(header.expected("integer")),
             };
@@ -151,7 +147,7 @@ where
                 };
 
                 match (tag, len) {
-                    (TAG_BIGPOS, Some(len)) | (TAG_BIGNEG, Some(len)) if len <= 16 => {
+                    (tag::BIGPOS, Some(len)) | (tag::BIGNEG, Some(len)) if len <= 16 => {
                         let result = match self.integer(Some(Header::Tag(tag)))? {
                             (false, raw) => return visitor.visit_u128(raw),
                             (true, raw) => i128::try_from(raw).map(|x| x ^ !0),
@@ -172,10 +168,10 @@ where
 
             Header::Float(..) => self.deserialize_f64(visitor),
 
-            Header::Simple(SIMPLE_FALSE) => self.deserialize_bool(visitor),
-            Header::Simple(SIMPLE_TRUE) => self.deserialize_bool(visitor),
-            Header::Simple(SIMPLE_NULL) => self.deserialize_option(visitor),
-            Header::Simple(SIMPLE_UNDEFINED) => self.deserialize_option(visitor),
+            Header::Simple(simple::FALSE) => self.deserialize_bool(visitor),
+            Header::Simple(simple::TRUE) => self.deserialize_bool(visitor),
+            Header::Simple(simple::NULL) => self.deserialize_option(visitor),
+            Header::Simple(simple::UNDEFINED) => self.deserialize_option(visitor),
             h @ Header::Simple(..) => Err(h.expected("known simple value")),
 
             h @ Header::Break => Err(h.expected("non-break")),
@@ -189,8 +185,8 @@ where
 
             return match self.decoder.pull()? {
                 Header::Tag(..) => continue,
-                Header::Simple(SIMPLE_FALSE) => visitor.visit_bool(false),
-                Header::Simple(SIMPLE_TRUE) => visitor.visit_bool(true),
+                Header::Simple(simple::FALSE) => visitor.visit_bool(false),
+                Header::Simple(simple::TRUE) => visitor.visit_bool(true),
                 _ => Err(Error::semantic(offset, "expected bool")),
             };
         }
@@ -464,8 +460,8 @@ where
     fn deserialize_option<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
             return match self.decoder.pull()? {
-                Header::Simple(SIMPLE_UNDEFINED) => visitor.visit_none(),
-                Header::Simple(SIMPLE_NULL) => visitor.visit_none(),
+                Header::Simple(simple::UNDEFINED) => visitor.visit_none(),
+                Header::Simple(simple::NULL) => visitor.visit_none(),
                 Header::Tag(..) => continue,
                 header => {
                     self.decoder.push(header);
@@ -479,8 +475,8 @@ where
     fn deserialize_unit<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
             return match self.decoder.pull()? {
-                Header::Simple(SIMPLE_UNDEFINED) => visitor.visit_unit(),
-                Header::Simple(SIMPLE_NULL) => visitor.visit_unit(),
+                Header::Simple(simple::UNDEFINED) => visitor.visit_unit(),
+                Header::Simple(simple::NULL) => visitor.visit_unit(),
                 Header::Tag(..) => continue,
                 header => Err(header.expected("unit")),
             };
