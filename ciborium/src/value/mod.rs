@@ -2,7 +2,6 @@
 
 //! A dynamic CBOR value
 
-mod bytes;
 mod float;
 mod integer;
 
@@ -10,7 +9,6 @@ mod de;
 mod error;
 mod ser;
 
-pub use bytes::Bytes;
 pub use error::Error;
 pub use float::{Float, TryFromFloatError};
 pub use integer::Integer;
@@ -25,7 +23,7 @@ pub enum Value {
     Integer(Integer),
 
     /// Bytes
-    Bytes(Bytes<Vec<u8>>),
+    Bytes(Vec<u8>),
 
     /// A float
     Float(Float),
@@ -75,8 +73,6 @@ implfrom! {
     Integer(u8),
     Integer(i8),
 
-    Bytes(Bytes<Vec<u8>>),
-    Bytes(Bytes<&[u8]>),
     Bytes(Vec<u8>),
     Bytes(&[u8]),
 

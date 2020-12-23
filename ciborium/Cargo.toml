@@ -25,6 +25,7 @@ ciborium-io = { path = "../ciborium-io", features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 
 [dev-dependencies]
+serde_bytes = "0.11"
 rstest = "0.6"
 rand = "0.8"
 hex = "0.4"

@@ -2,18 +2,14 @@
 
 extern crate alloc;
 
-use ciborium::{
-    cbor,
-    de::from_reader,
-    ser::into_writer,
-    value::{Bytes, Value},
-};
+use ciborium::{cbor, de::from_reader, ser::into_writer, value::Value};
 
 use alloc::collections::BTreeMap;
 use core::fmt::Debug;
 
 use rstest::rstest;
 use serde::{Deserialize, Serialize};
+use serde_bytes::ByteBuf;
 
 #[derive(Deserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq)]
 struct UnitStruct;
@@ -57,7 +53,7 @@ enum Enum {
     case('é', cbor!('é').unwrap()),
     case("foo".to_string(), cbor!("foo").unwrap()),
 
-    case(Bytes::from(&b"\x00\x01\x02\x03"[..]), Value::Bytes(vec![0, 1, 2, 3].into())),
+    case(ByteBuf::from(&b"\x00\x01\x02\x03"[..]), Value::Bytes(vec![0, 1, 2, 3].into())),
 
     case(Option::<u8>::None, cbor!(null).unwrap()),
     case(Option::<u8>::Some(7), cbor!(7).unwrap()),
