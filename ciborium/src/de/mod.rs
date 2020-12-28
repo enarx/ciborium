@@ -330,9 +330,9 @@ where
                 Header::Text(len) => {
                     let mut buffer = String::new();
 
-                    let mut segments = self.decoder.text(len, &mut self.scratch[..]);
+                    let mut segments = self.decoder.text(len);
                     while let Some(mut segment) = segments.pull()? {
-                        while let Some(chunk) = segment.pull()? {
+                        while let Some(chunk) = segment.pull(&mut self.scratch[..])? {
                             buffer.push_str(chunk);
                         }
                     }
@@ -371,9 +371,9 @@ where
                 Header::Bytes(len) => {
                     let mut buffer = Vec::new();
 
-                    let mut segments = self.decoder.bytes(len, &mut self.scratch[..]);
+                    let mut segments = self.decoder.bytes(len);
                     while let Some(mut segment) = segments.pull()? {
-                        while let Some(chunk) = segment.pull()? {
+                        while let Some(chunk) = segment.pull(&mut self.scratch[..])? {
                             buffer.extend_from_slice(chunk);
                         }
                     }

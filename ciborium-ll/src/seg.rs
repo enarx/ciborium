@@ -108,20 +108,28 @@ impl Parser for Text {
 ///
 /// This type represents a single bytes or text segment on the wire. It can be
 /// read out in parsed chunks based on the size of the input scratch buffer.
-pub struct Segment<'a, R: Read, P: Parser> {
-    reader: &'a mut Decoder<R>,
-    buffer: &'a mut [u8],
+pub struct Segment<'r, R: Read, P: Parser> {
+    reader: &'r mut Decoder<R>,
     unread: usize,
     offset: usize,
     parser: P,
 }
 
-impl<'a, R: Read, P: Parser> Segment<'a, R, P> {
+impl<'r, R: Read, P: Parser> Segment<'r, R, P> {
+    /// Gets the number of unprocessed bytes
+    #[inline]
+    pub fn left(&self) -> usize {
+        self.unread + self.parser.saved()
+    }
+
     /// Gets the next parsed chunk within the segment
     ///
     /// Returns `Ok(None)` when all chunks have been read.
     #[inline]
-    pub fn pull(&mut self) -> Result<Option<&P::Item>, Error<R::Error>> {
+    pub fn pull<'a>(
+        &mut self,
+        buffer: &'a mut [u8],
+    ) -> Result<Option<&'a P::Item>, Error<R::Error>> {
         use core::cmp::min;
 
         let prev = self.parser.saved();
@@ -132,8 +140,8 @@ impl<'a, R: Read, P: Parser> Segment<'a, R, P> {
         }
 
         // Determine how many bytes to read.
-        let size = min(self.buffer.len(), prev + self.unread);
-        let full = &mut self.buffer[..size];
+        let size = min(buffer.len(), prev + self.unread);
+        let full = &mut buffer[..size];
         let next = &mut full[min(size, prev)..];
 
         // Read additional bytes.
@@ -151,24 +159,23 @@ impl<'a, R: Read, P: Parser> Segment<'a, R, P> {
 ///
 /// CBOR allows for bytes or text items to be segmented. This type represents
 /// the state of that segmented input stream.
-pub struct Segments<'a, R: Read, P: Parser> {
-    reader: &'a mut Decoder<R>,
-    buffer: Option<&'a mut [u8]>,
+pub struct Segments<'r, R: Read, P: Parser> {
+    reader: &'r mut Decoder<R>,
+    finish: bool,
     nested: usize,
     parser: PhantomData<P>,
     unwrap: fn(Header) -> Result<Option<usize>, ()>,
 }
 
-impl<'a, R: Read, P: Parser> Segments<'a, R, P> {
+impl<'r, R: Read, P: Parser> Segments<'r, R, P> {
     #[inline]
     pub(crate) fn new(
-        decoder: &'a mut Decoder<R>,
-        buffer: &'a mut [u8],
+        decoder: &'r mut Decoder<R>,
         unwrap: fn(Header) -> Result<Option<usize>, ()>,
     ) -> Self {
         Self {
             reader: decoder,
-            buffer: Some(buffer),
+            finish: false,
             nested: 0,
             parser: PhantomData,
             unwrap,
@@ -180,7 +187,7 @@ impl<'a, R: Read, P: Parser> Segments<'a, R, P> {
     /// Returns `Ok(None)` at the conclusion of the stream.
     #[inline]
     pub fn pull(&mut self) -> Result<Option<Segment<R, P>>, Error<R::Error>> {
-        while self.buffer.is_some() {
+        while !self.finish {
             let offset = self.reader.offset();
             match self.reader.pull()? {
                 Header::Break if self.nested == 1 => return Ok(None),
@@ -189,14 +196,9 @@ impl<'a, R: Read, P: Parser> Segments<'a, R, P> {
                     Err(..) => return Err(Error::Syntax(offset)),
                     Ok(None) => self.nested += 1,
                     Ok(Some(len)) => {
-                        let buffer = match self.nested {
-                            0 => self.buffer.take().unwrap(),
-                            _ => self.buffer.as_mut().unwrap(),
-                        };
-
+                        self.finish = self.nested == 0;
                         return Ok(Some(Segment {
                             reader: self.reader,
-                            buffer,
                             unread: len,
                             offset,
                             parser: P::default(),

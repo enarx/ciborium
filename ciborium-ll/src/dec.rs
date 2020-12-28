@@ -146,13 +146,9 @@ impl<R: Read> Decoder<R> {
     /// at the cost of memory usage. You should consider this trade off when
     /// deciding the size of your buffer.
     #[inline]
-    pub fn bytes<'a>(
-        &'a mut self,
-        len: Option<usize>,
-        buf: &'a mut [u8],
-    ) -> Segments<'a, R, crate::seg::Bytes> {
+    pub fn bytes<'r>(&'r mut self, len: Option<usize>) -> Segments<'r, R, crate::seg::Bytes> {
         self.push(Header::Bytes(len));
-        Segments::new(self, buf, |header| match header {
+        Segments::new(self, |header| match header {
             Header::Bytes(len) => Ok(len),
             _ => Err(()),
         })
@@ -170,13 +166,9 @@ impl<R: Read> Decoder<R> {
     /// at the cost of memory usage. You should consider this trade off when
     /// deciding the size of your buffer.
     #[inline]
-    pub fn text<'a>(
-        &'a mut self,
-        len: Option<usize>,
-        buf: &'a mut [u8],
-    ) -> Segments<'a, R, crate::seg::Text> {
+    pub fn text<'r>(&'r mut self, len: Option<usize>) -> Segments<'r, R, crate::seg::Text> {
         self.push(Header::Text(len));
-        Segments::new(self, buf, |header| match header {
+        Segments::new(self, |header| match header {
             Header::Text(len) => Ok(len),
             _ => Err(()),
         })

@@ -75,10 +75,10 @@
 //!
 //! match decoder.pull().unwrap() {
 //!     Header::Text(len) => {
-//!         let mut buffer = [0u8; 7];
-//!         let mut segments = decoder.text(len, &mut buffer[..]);
+//!         let mut segments = decoder.text(len);
 //!         while let Some(mut segment) = segments.pull().unwrap() {
-//!             while let Some(chunk) = segment.pull().unwrap() {
+//!             let mut buffer = [0u8; 7];
+//!             while let Some(chunk) = segment.pull(&mut buffer[..]).unwrap() {
 //!                  match chunk {
 //!                      "Hello, " if chunks == 0 => chunks = 1,
 //!                      "World!" if chunks == 1 => chunks = 2,
