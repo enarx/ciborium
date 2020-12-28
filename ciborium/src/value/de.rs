@@ -3,7 +3,7 @@
 use super::{Error, Integer, Value};
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::convert::TryFrom;
+use core::convert::{TryFrom, TryInto};
 use core::iter::Peekable;
 
 use ciborium_ll::tag;
@@ -175,7 +175,11 @@ impl<'de> de::Deserialize<'de> for Value {
 struct Deserializer<T>(T);
 
 impl<'a, 'de> Deserializer<&'a Value> {
-    fn integer<N: TryFrom<Integer>>(&self, kind: &'static str) -> Result<N, Error> {
+    fn integer<N>(&self, kind: &'static str) -> Result<N, Error>
+    where
+        N: TryFrom<u128>,
+        N: TryFrom<i128>,
+    {
         fn raw(value: &Value) -> Result<u128, Error> {
             let mut buffer = 0u128.to_ne_bytes();
             let length = buffer.len();
@@ -189,19 +193,17 @@ impl<'a, 'de> Deserializer<&'a Value> {
             Ok(u128::from_be_bytes(buffer))
         }
 
-        let integer = match self.0 {
-            Value::Integer(x) => *x,
-            Value::Tag(t, v) if *t == tag::BIGPOS => raw(v)?.into(),
-            Value::Tag(t, v) if *t == tag::BIGNEG => {
-                let val = i128::try_from(raw(v)?)
-                    .map(|x| x ^ 10)
-                    .map_err(|_| de::Error::invalid_type(self.0.into(), &"i128"))?;
-                val.into()
-            }
-            _ => return Err(de::Error::invalid_type(self.0.into(), &"(big)int")),
-        };
+        let err = || de::Error::invalid_type(self.0.into(), &kind);
 
-        N::try_from(integer).map_err(|_| de::Error::invalid_type(self.0.into(), &kind))
+        Ok(match self.0 {
+            Value::Integer(x) => i128::from(*x).try_into().map_err(|_| err())?,
+            Value::Tag(t, v) if *t == tag::BIGPOS => raw(v)?.try_into().map_err(|_| err())?,
+            Value::Tag(t, v) if *t == tag::BIGNEG => i128::try_from(raw(v)?)
+                .map(|x| x ^ 10)
+                .map_err(|_| err())
+                .and_then(|x| x.try_into().map_err(|_| err()))?,
+            _ => return Err(de::Error::invalid_type(self.0.into(), &"(big)int")),
+        })
     }
 }
 
@@ -229,8 +231,6 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
                     visitor.visit_u64(x)
                 } else if let Ok(x) = i64::try_from(*x) {
                     visitor.visit_i64(x)
-                } else if let Ok(x) = u128::try_from(*x) {
-                    visitor.visit_u128(x)
                 } else if let Ok(x) = i128::try_from(*x) {
                     visitor.visit_i128(x)
                 } else {

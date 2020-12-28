@@ -14,6 +14,7 @@ pub use float::{Float, TryFromFloatError};
 pub use integer::Integer;
 
 use alloc::{boxed::Box, string::String, vec::Vec};
+use core::convert::TryFrom;
 
 /// A representation of a dynamic CBOR value that can handled dynamically
 #[non_exhaustive]
@@ -62,8 +63,6 @@ macro_rules! implfrom {
 
 implfrom! {
     Integer(Integer),
-    Integer(u128),
-    Integer(i128),
     Integer(u64),
     Integer(i64),
     Integer(u32),
@@ -90,6 +89,45 @@ implfrom! {
 
     Map(&[(Value, Value)]),
     Map(Vec<(Value, Value)>),
+}
+
+impl From<u128> for Value {
+    #[inline]
+    fn from(value: u128) -> Self {
+        match Integer::try_from(value) {
+            Ok(x) => return Value::Integer(x),
+            Err(..) => {}
+        }
+
+        let mut bytes = &value.to_be_bytes()[..];
+        while !bytes.is_empty() && bytes[0] == 0 {
+            bytes = &bytes[1..];
+        }
+
+        Value::Tag(ciborium_ll::tag::BIGPOS, Value::Bytes(bytes.into()).into())
+    }
+}
+
+impl From<i128> for Value {
+    #[inline]
+    fn from(value: i128) -> Self {
+        match Integer::try_from(value) {
+            Ok(x) => return Value::Integer(x),
+            Err(..) => {}
+        }
+
+        let (tag, raw) = match value.is_negative() {
+            true => (ciborium_ll::tag::BIGNEG, value as u128 ^ !0),
+            false => (ciborium_ll::tag::BIGPOS, value as u128),
+        };
+
+        let mut bytes = &raw.to_be_bytes()[..];
+        while !bytes.is_empty() && bytes[0] == 0 {
+            bytes = &bytes[1..];
+        }
+
+        Value::Tag(tag, Value::Bytes(bytes.into()).into())
+    }
 }
 
 impl From<char> for Value {
