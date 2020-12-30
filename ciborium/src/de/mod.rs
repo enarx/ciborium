@@ -88,15 +88,32 @@ where
                 header => return Err(header.expected("integer")),
             };
 
-            let mut buffer = 0u128.to_ne_bytes();
+            let mut buffer = [0u8; 16];
+            let mut value = [0u8; 16];
+            let mut index = 0usize;
 
             return match self.decoder.pull()? {
-                Header::Bytes(Some(len)) if len <= 16 => {
-                    self.decoder.read_exact(&mut buffer[16 - len..])?;
-                    Ok((neg, u128::from_be_bytes(buffer)))
+                Header::Bytes(len) => {
+                    let mut segments = self.decoder.bytes(len);
+                    while let Some(mut segment) = segments.pull()? {
+                        while let Some(chunk) = segment.pull(&mut buffer)? {
+                            for b in chunk {
+                                match index {
+                                    16 => return Err(de::Error::custom("bigint too large")),
+                                    0 if *b == 0 => continue, // Skip leading zeros
+                                    _ => value[index] = *b,
+                                }
+
+                                index += 1;
+                            }
+                        }
+                    }
+
+                    value[..index].reverse();
+                    Ok((neg, u128::from_le_bytes(value)))
                 }
 
-                h => Err(h.expected("128-bit bigint")),
+                h => Err(h.expected("bytes")),
             };
         }
     }

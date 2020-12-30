@@ -185,7 +185,20 @@ impl<'a, 'de> Deserializer<&'a Value> {
             let length = buffer.len();
 
             let bytes = match value {
-                Value::Bytes(x) if x.len() <= length => x,
+                Value::Bytes(bytes) => {
+                    // Skip leading zeros...
+                    let mut bytes: &[u8] = bytes.as_ref();
+                    while bytes.len() > buffer.len() && bytes[0] == 0 {
+                        bytes = &bytes[1..];
+                    }
+
+                    if bytes.len() > buffer.len() {
+                        return Err(de::Error::custom("bigint too large"));
+                    }
+
+                    bytes
+                }
+
                 _ => return Err(de::Error::invalid_type(value.into(), &"bytes")),
             };
 
