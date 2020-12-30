@@ -1,135 +1,365 @@
 // SPDX-License-Identifier: Apache-2.0
 
-extern crate alloc;
+extern crate std;
 
-use ciborium::value::Value;
+use std::collections::{BTreeMap, HashMap};
+use std::convert::TryFrom;
+use std::fmt::Debug;
+
+use ciborium::value::{Float, Value};
 use ciborium::{cbor, de::from_reader, ser::into_writer};
 
 use rstest::rstest;
+use serde::{Deserialize, Serialize};
 
-#[rstest(value, bytes, alternate,
-    ////// The following test are values from the RFC
-    case(cbor!(0).unwrap(), "00", false),
-    case(cbor!(1).unwrap(), "01", false),
-    case(cbor!(1).unwrap(), "1b0000000000000001", true),
-    case(cbor!(10).unwrap(), "0a", false),
-    case(cbor!(23).unwrap(), "17", false),
-    case(cbor!(24).unwrap(), "1818", false),
-    case(cbor!(25).unwrap(), "1819", false),
-    case(cbor!(100).unwrap(), "1864", false),
-    case(cbor!(1000).unwrap(), "1903e8", false),
-    case(cbor!(1000000).unwrap(), "1a000f4240", false), // 10
-    case(cbor!(1000000000000u128).unwrap(), "1b000000e8d4a51000", false),
-    case(cbor!(18446744073709551615u128).unwrap(), "1bffffffffffffffff", false),
-    case(cbor!(18446744073709551616u128).unwrap(), "c249010000000000000000", false),
+macro_rules! val {
+    ($x:expr) => {
+        Value::try_from($x).unwrap()
+    };
+}
 
-    case(cbor!(-18446744073709551616i128).unwrap(), "3bffffffffffffffff", false),
-    case(cbor!(-18446744073709551617i128).unwrap(), "c349010000000000000000", false),
-    case(cbor!(-1).unwrap(), "20", false),
-    case(cbor!(-1).unwrap(), "3b0000000000000000", true),
-    case(cbor!(-10).unwrap(), "29", false),
-    case(cbor!(-100).unwrap(), "3863", false),
-    case(cbor!(-1000).unwrap(), "3903e7", false), // 20
+macro_rules! hex {
+    ($x:expr) => {
+        serde_bytes::ByteBuf::from(hex::decode($x).unwrap())
+    };
+}
 
-    case(cbor!(0.0).unwrap(), "f90000", false),
-    case(cbor!(-0.0).unwrap(), "f98000", false),
-    case(cbor!(1.0).unwrap(), "f93c00", false),
-    case(cbor!(1.1).unwrap(), "fb3ff199999999999a", false),
-    case(cbor!(1.5).unwrap(), "f93e00", false),
-    case(cbor!(65504.0).unwrap(), "f97bff", false),
-    case(cbor!(100000.0).unwrap(), "fa47c35000", false),
-    case(cbor!(3.4028234663852886e+38).unwrap(), "fa7f7fffff", false),
-    case(cbor!(1.0e+300).unwrap(), "fb7e37e43c8800759c", false),
-    case(cbor!(5.960464477539063e-8).unwrap(), "f90001", false), // 30
-    case(cbor!(0.00006103515625).unwrap(), "f90400", false),
-    case(cbor!(-4.0).unwrap(), "f9c400", false),
-    case(cbor!(-4.1).unwrap(), "fbc010666666666666", false),
-    case(cbor!(core::f64::INFINITY).unwrap(), "f97c00", false),
-    case(cbor!(core::f64::NAN).unwrap(), "f97e00", false),
-    case(cbor!(-core::f64::INFINITY).unwrap(), "f9fc00", false),
-    case(cbor!(core::f64::INFINITY).unwrap(), "fa7f800000", true),
-    case(cbor!(core::f64::NAN).unwrap(), "fa7fc00000", true),
-    case(cbor!(-core::f64::INFINITY).unwrap(), "faff800000", true),
-    case(cbor!(core::f64::INFINITY).unwrap(), "fb7ff0000000000000", true), // 40
-    case(cbor!(core::f64::NAN).unwrap(), "fb7ff8000000000000", true),
-    case(cbor!(-core::f64::INFINITY).unwrap(), "fbfff0000000000000", true),
+macro_rules! map {
+    ($($k:expr => $v:expr),*) => {{
+        let mut map = BTreeMap::new();
+        $(
+            map.insert(Value::from($k), Value::from($v));
+        )*
+        map
+    }}
+}
 
-    case(cbor!(false).unwrap(), "f4", false),
-    case(cbor!(true).unwrap(), "f5", false),
-    case(cbor!(null).unwrap(), "f6", false),
+// Keep the first "case" aligned to a line number ending in 1 for ease in finding tests.
+#[rstest(input, value, bytes, alternate, equality,
 
-    case(cbor!(Value::from(&b""[..])).unwrap(), "40", false),
-    case(cbor!(Value::from(&b"\x01\x02\x03\x04"[..])).unwrap(), "4401020304", false),
-    case(cbor!(Value::from(&b"\x01\x02\x03\x04\x05"[..])).unwrap(), "5f42010243030405ff", true),
 
-    case(cbor!("").unwrap(), "60", false),
-    case(cbor!("a").unwrap(), "6161", false), // 50
-    case(cbor!("IETF").unwrap(), "6449455446", false),
-    case(cbor!("\"\\").unwrap(), "62225c", false),
-    case(cbor!("ü").unwrap(), "62c3bc", false),
-    case(cbor!("水").unwrap(), "63e6b0b4", false),
-    case(cbor!("𐅑").unwrap(), "64f0908591", false),
-    case(cbor!("streaming").unwrap(), "7f657374726561646d696e67ff", true),
-
-    case(cbor!([]).unwrap(), "80", false),
-    case(cbor!([1, 2, 3]).unwrap(), "83010203", false),
-    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), "8301820203820405", false),
-    case(cbor!([
-        1, 2, 3, 4, 5, 6, 7, 8, 9,
-        10, 11, 12, 13, 14, 15, 16,
-        17, 18, 19, 20, 21, 22, 23,
-        24, 25
-    ]).unwrap(), "98190102030405060708090a0b0c0d0e0f101112131415161718181819", false), // 60
-    case(cbor!([]).unwrap(), "9fff", true),
-    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), "9f018202039f0405ffff", true),
-    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), "9f01820203820405ff", true),
-    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), "83018202039f0405ff", true),
-    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), "83019f0203ff820405", true),
-    case(cbor!([
-        1, 2, 3, 4, 5, 6, 7, 8, 9,
-        10, 11, 12, 13, 14, 15, 16,
-        17, 18, 19, 20, 21, 22, 23,
-        24, 25
-    ]).unwrap(), "9f0102030405060708090a0b0c0d0e0f101112131415161718181819ff", true),
-
-    case(cbor!({}).unwrap(), "a0", false),
-    case(cbor!({1 => 2, 3 => 4}).unwrap(), "a201020304", false),
-    case(cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), "a26161016162820203", false),
-    case(cbor!(["a", {"b" => "c"}]).unwrap(), "826161a161626163", false), // 70
-    case(cbor!({
-        "a" => "A",
-        "b" => "B",
-        "c" => "C",
-        "d" => "D",
-        "e" => "E"
-    }).unwrap(), "a56161614161626142616361436164614461656145", false),
-    case(cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), "bf61610161629f0203ffff", true),
-    case(cbor!(["a", {"b" => "c"}]).unwrap(), "826161bf61626163ff", true),
-    case(cbor!({"Fun" => true, "Amt" => -2}).unwrap(), "bf6346756ef563416d7421ff", true),
-
-    ////// The following test are NOT values from the RFC
-    // Test that we can decode BigNums with leading zeroes (see RFC section 2.4.2)
-    case(
-        Value::Tag(2,
-            Value::Bytes(
-                hex::decode("0000000000000000000000000000000000000001")
-                .unwrap()
-                .into()
-            ).into()
-        ),
-        "C2540000000000000000000000000000000000000001",
-        true
-    ),
+    case(0u8,   val!(0u8),   "00", false, same),
+    case(0u16,  val!(0u16),  "00", false, same),
+    case(0u32,  val!(0u32),  "00", false, same),
+    case(0u64,  val!(0u64),  "00", false, same),
+    case(0u128, val!(0u128), "00", false, same),
+    case(0i8,   val!(0i8),   "00", false, same),
+    case(0i16,  val!(0i16),  "00", false, same),
+    case(0i32,  val!(0i32),  "00", false, same),
+    case(0i64,  val!(0i64),  "00", false, same),
+    case(0i128, val!(0i128), "00", false, same),
+    case(1u8,   val!(1u8),   "01", false, same),
+    case(1u16,  val!(1u16),  "01", false, same),
+    case(1u32,  val!(1u32),  "01", false, same),
+    case(1u64,  val!(1u64),  "01", false, same),
+    case(1u128, val!(1u128), "01", false, same),
+    case(1i8,   val!(1i8),   "01", false, same),
+    case(1i16,  val!(1i16),  "01", false, same),
+    case(1i32,  val!(1i32),  "01", false, same),
+    case(1i64,  val!(1i64),  "01", false, same),
+    case(1i128, val!(1i128), "01", false, same),
+    case(1u8,   val!(1u8),   "1b0000000000000001", true, same),
+    case(1u16,  val!(1u16),  "1b0000000000000001", true, same),
+    case(1u32,  val!(1u32),  "1b0000000000000001", true, same),
+    case(1u64,  val!(1u64),  "1b0000000000000001", true, same),
+    case(1u128, val!(1u128), "1b0000000000000001", true, same),
+    case(1i8,   val!(1i8),   "1b0000000000000001", true, same),
+    case(1i16,  val!(1i16),  "1b0000000000000001", true, same),
+    case(1i32,  val!(1i32),  "1b0000000000000001", true, same),
+    case(1i64,  val!(1i64),  "1b0000000000000001", true, same),
+    case(1i128, val!(1i128), "1b0000000000000001", true, same),
+    case(1u8,   bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(1u16,  bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(1u32,  bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(1u64,  bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(1u128, bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(1i8,   bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(1i16,  bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(1i32,  bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(1i64,  bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(1i128, bigint(), "c2540000000000000000000000000000000000000001", true, same), // Not In RFC
+    case(10u8,   val!(10u8),   "0a", false, same),
+    case(10u16,  val!(10u16),  "0a", false, same),
+    case(10u32,  val!(10u32),  "0a", false, same),
+    case(10u64,  val!(10u64),  "0a", false, same),
+    case(10u128, val!(10u128), "0a", false, same),
+    case(10i8,   val!(10i8),   "0a", false, same),
+    case(10i16,  val!(10i16),  "0a", false, same),
+    case(10i32,  val!(10i32),  "0a", false, same),
+    case(10i64,  val!(10i64),  "0a", false, same),
+    case(10i128, val!(10i128), "0a", false, same),
+    case(23u8,   val!(23u8),   "17", false, same),
+    case(23u16,  val!(23u16),  "17", false, same),
+    case(23u32,  val!(23u32),  "17", false, same),
+    case(23u64,  val!(23u64),  "17", false, same),
+    case(23u128, val!(23u128), "17", false, same),
+    case(23i8,   val!(23i8),   "17", false, same),
+    case(23i16,  val!(23i16),  "17", false, same),
+    case(23i32,  val!(23i32),  "17", false, same),
+    case(23i64,  val!(23i64),  "17", false, same),
+    case(23i128, val!(23i128), "17", false, same),
+    case(24u8,   val!(24u8),   "1818", false, same),
+    case(24u16,  val!(24u16),  "1818", false, same),
+    case(24u32,  val!(24u32),  "1818", false, same),
+    case(24u64,  val!(24u64),  "1818", false, same),
+    case(24u128, val!(24u128), "1818", false, same),
+    case(24i8,   val!(24i8),   "1818", false, same),
+    case(24i16,  val!(24i16),  "1818", false, same),
+    case(24i32,  val!(24i32),  "1818", false, same),
+    case(24i64,  val!(24i64),  "1818", false, same),
+    case(24i128, val!(24i128), "1818", false, same),
+    case(25u8,   val!(25u8),   "1819", false, same),
+    case(25u16,  val!(25u16),  "1819", false, same),
+    case(25u32,  val!(25u32),  "1819", false, same),
+    case(25u64,  val!(25u64),  "1819", false, same),
+    case(25u128, val!(25u128), "1819", false, same),
+    case(25i8,   val!(25i8),   "1819", false, same),
+    case(25i16,  val!(25i16),  "1819", false, same),
+    case(25i32,  val!(25i32),  "1819", false, same),
+    case(25i64,  val!(25i64),  "1819", false, same),
+    case(25i128, val!(25i128), "1819", false, same),
+    case(100u8,   val!(100u8),   "1864", false, same),
+    case(100u16,  val!(100u16),  "1864", false, same),
+    case(100u32,  val!(100u32),  "1864", false, same),
+    case(100u64,  val!(100u64),  "1864", false, same),
+    case(100u128, val!(100u128), "1864", false, same),
+    case(100i8,   val!(100i8),   "1864", false, same),
+    case(100i16,  val!(100i16),  "1864", false, same),
+    case(100i32,  val!(100i32),  "1864", false, same),
+    case(100i64,  val!(100i64),  "1864", false, same),
+    case(100i128, val!(100i128), "1864", false, same),
+    case(1000u16,  val!(1000u16),  "1903e8", false, same),
+    case(1000u32,  val!(1000u32),  "1903e8", false, same),
+    case(1000u64,  val!(1000u64),  "1903e8", false, same),
+    case(1000u128, val!(1000u128), "1903e8", false, same),
+    case(1000i16,  val!(1000i16),  "1903e8", false, same),
+    case(1000i32,  val!(1000i32),  "1903e8", false, same),
+    case(1000i64,  val!(1000i64),  "1903e8", false, same),
+    case(1000i128, val!(1000i128), "1903e8", false, same),
+    case(1000000u32,  val!(1000000u32),  "1a000f4240", false, same),
+    case(1000000u64,  val!(1000000u64),  "1a000f4240", false, same),
+    case(1000000u128, val!(1000000u128), "1a000f4240", false, same),
+    case(1000000i32,  val!(1000000i32),  "1a000f4240", false, same),
+    case(1000000i64,  val!(1000000i64),  "1a000f4240", false, same),
+    case(1000000i128, val!(1000000i128), "1a000f4240", false, same),
+    case(1000000000000u64,  val!(1000000000000u64),  "1b000000e8d4a51000", false, same),
+    case(1000000000000u128, val!(1000000000000u128), "1b000000e8d4a51000", false, same),
+    case(1000000000000i64,  val!(1000000000000i64),  "1b000000e8d4a51000", false, same),
+    case(1000000000000i128, val!(1000000000000i128), "1b000000e8d4a51000", false, same),
+    case(18446744073709551615u64,  val!(18446744073709551615u64),  "1bffffffffffffffff", false, same),
+    case(18446744073709551615u128, val!(18446744073709551615u128), "1bffffffffffffffff", false, same),
+    case(18446744073709551615i128, val!(18446744073709551615i128), "1bffffffffffffffff", false, same),
+    case(18446744073709551616u128, val!(18446744073709551616u128), "c249010000000000000000", false, same),
+    case(18446744073709551616i128, val!(18446744073709551616i128), "c249010000000000000000", false, same),
+    case(-18446744073709551617i128, val!(-18446744073709551617i128), "c349010000000000000000", false, same),
+    case(-18446744073709551616i128, val!(-18446744073709551616i128), "3bffffffffffffffff", false, same),
+    case(-1000i16,  val!(-1000i16),  "3903e7", false, same),
+    case(-1000i32,  val!(-1000i32),  "3903e7", false, same),
+    case(-1000i64,  val!(-1000i64),  "3903e7", false, same),
+    case(-1000i128, val!(-1000i128), "3903e7", false, same),
+    case(-100i8,   val!(-100i8),   "3863", false, same),
+    case(-100i16,  val!(-100i16),  "3863", false, same),
+    case(-100i32,  val!(-100i32),  "3863", false, same),
+    case(-100i64,  val!(-100i64),  "3863", false, same),
+    case(-100i128, val!(-100i128), "3863", false, same),
+    case(-10i8,   val!(-10i8),   "29", false, same),
+    case(-10i16,  val!(-10i16),  "29", false, same),
+    case(-10i32,  val!(-10i32),  "29", false, same),
+    case(-10i64,  val!(-10i64),  "29", false, same),
+    case(-10i128, val!(-10i128), "29", false, same),
+    case(-1i8,   val!(-1i8),   "20", false, same),
+    case(-1i16,  val!(-1i16),  "20", false, same),
+    case(-1i32,  val!(-1i32),  "20", false, same),
+    case(-1i64,  val!(-1i64),  "20", false, same),
+    case(-1i128, val!(-1i128), "20", false, same),
+    case(-1i8,   val!(-1i8),   "3b0000000000000000", true, same),
+    case(-1i16,  val!(-1i16),  "3b0000000000000000", true, same),
+    case(-1i32,  val!(-1i32),  "3b0000000000000000", true, same),
+    case(-1i64,  val!(-1i64),  "3b0000000000000000", true, same),
+    case(-1i128, val!(-1i128), "3b0000000000000000", true, same),
+    case(0.0f32, val!(0.0f32), "f90000", false, Float::from),
+    case(0.0f64, val!(0.0f64), "f90000", false, Float::from),
+    case(-0.0f32, val!(-0.0f32), "f98000", false, Float::from),
+    case(-0.0f64, val!(-0.0f64), "f98000", false, Float::from),
+    case(1.0f32, val!(1.0f32), "f93c00", false, Float::from),
+    case(1.0f64, val!(1.0f64), "f93c00", false, Float::from),
+    case(1.1f32, val!(1.1f32), "fa3f8ccccd", false, Float::from), // Not In RFC
+    case(1.1f64, val!(1.1f64), "fb3ff199999999999a", false, Float::from),
+    case(1.5f32, val!(1.5f32), "f93e00", false, Float::from),
+    case(1.5f64, val!(1.5f64), "f93e00", false, Float::from),
+    case(65504.0f32, val!(65504.0f32), "f97bff", false, Float::from),
+    case(65504.0f64, val!(65504.0f64), "f97bff", false, Float::from),
+    case(100000.0f32, val!(100000.0f32), "fa47c35000", false, Float::from),
+    case(100000.0f64, val!(100000.0f64), "fa47c35000", false, Float::from),
+    case(3.4028234663852886e+38f32, val!(3.4028234663852886e+38f32), "fa7f7fffff", false, Float::from),
+    case(3.4028234663852886e+38f64, val!(3.4028234663852886e+38f64), "fa7f7fffff", false, Float::from),
+    case(1.0e+300f64, val!(1.0e+300f64), "fb7e37e43c8800759c", false, Float::from),
+    case(5.960464477539063e-8f32, val!(5.960464477539063e-8f32), "f90001", false, Float::from),
+    case(5.960464477539063e-8f64, val!(5.960464477539063e-8f64), "f90001", false, Float::from),
+    case(0.00006103515625f32, val!(0.00006103515625f32), "f90400", false, Float::from),
+    case(0.00006103515625f64, val!(0.00006103515625f64), "f90400", false, Float::from),
+    case(-4.0f32, val!(-4.0f32), "f9c400", false, Float::from),
+    case(-4.0f64, val!(-4.0f64), "f9c400", false, Float::from),
+    case(-4.1f32, val!(-4.1f32), "fac0833333", false, Float::from), // Not In RFC
+    case(-4.1f64, val!(-4.1f64), "fbc010666666666666", false, Float::from),
+    case(core::f32::INFINITY, val!(core::f32::INFINITY), "f97c00", false, Float::from),
+    case(core::f64::INFINITY, val!(core::f64::INFINITY), "f97c00", false, Float::from),
+    case(core::f32::INFINITY, val!(core::f32::INFINITY), "fa7f800000", true, Float::from),
+    case(core::f64::INFINITY, val!(core::f64::INFINITY), "fa7f800000", true, Float::from),
+    case(core::f32::INFINITY, val!(core::f32::INFINITY), "fb7ff0000000000000", true, Float::from),
+    case(core::f64::INFINITY, val!(core::f64::INFINITY), "fb7ff0000000000000", true, Float::from),
+    case(-core::f32::INFINITY, val!(-core::f32::INFINITY), "f9fc00", false, Float::from),
+    case(-core::f64::INFINITY, val!(-core::f64::INFINITY), "f9fc00", false, Float::from),
+    case(-core::f32::INFINITY, val!(-core::f32::INFINITY), "faff800000", true, Float::from),
+    case(-core::f64::INFINITY, val!(-core::f64::INFINITY), "faff800000", true, Float::from),
+    case(-core::f32::INFINITY, val!(-core::f32::INFINITY), "fbfff0000000000000", true, Float::from),
+    case(-core::f64::INFINITY, val!(-core::f64::INFINITY), "fbfff0000000000000", true, Float::from),
+    case(core::f32::NAN, val!(core::f32::NAN), "f97e00", false, Float::from),
+    case(core::f64::NAN, val!(core::f64::NAN), "f97e00", false, Float::from),
+    case(core::f32::NAN, val!(core::f32::NAN), "fa7fc00000", true, Float::from),
+    case(core::f64::NAN, val!(core::f64::NAN), "fa7fc00000", true, Float::from),
+    case(core::f32::NAN, val!(core::f32::NAN), "fb7ff8000000000000", true, Float::from),
+    case(core::f64::NAN, val!(core::f64::NAN), "fb7ff8000000000000", true, Float::from),
+    case(-core::f32::NAN, val!(-core::f32::NAN), "f9fe00", false, Float::from),            // Not In RFC
+    case(-core::f64::NAN, val!(-core::f64::NAN), "f9fe00", false, Float::from),            // Not In RFC
+    case(-core::f32::NAN, val!(-core::f32::NAN), "faffc00000", true, Float::from),         // Not In RFC
+    case(-core::f64::NAN, val!(-core::f64::NAN), "faffc00000", true, Float::from),         // Not In RFC
+    case(-core::f32::NAN, val!(-core::f32::NAN), "fbfff8000000000000", true, Float::from), // Not In RFC
+    case(-core::f64::NAN, val!(-core::f64::NAN), "fbfff8000000000000", true, Float::from), // Not In RFC
+    case(false, val!(false), "f4", false, same),
+    case(true, val!(true), "f5", false, same),
+    case(Value::Null, Value::Null, "f6", false, same),
+    case(hex!(""), val!(&b""[..]), "40", false, same),
+    case(hex!("01020304"), val!(&b"\x01\x02\x03\x04"[..]), "4401020304", false, same),
+    case(hex!("0102030405"), val!(&b"\x01\x02\x03\x04\x05"[..]), "5f42010243030405ff", true, same),
+    case("", val!(""), "60", false, ToOwned::to_owned),
+    case("a", val!("a"), "6161", false, ToOwned::to_owned),
+    case('a', val!('a'), "6161", false, same),
+    case("IETF", val!("IETF"), "6449455446", false, ToOwned::to_owned),
+    case("\"\\", val!("\"\\"), "62225c", false, ToOwned::to_owned),
+    case("ü", val!("ü"), "62c3bc", false, ToOwned::to_owned),
+    case('ü', val!('ü'), "62c3bc", false, same),
+    case("水", val!("水"), "63e6b0b4", false, ToOwned::to_owned),
+    case('水', val!('水'), "63e6b0b4", false, same),
+    case("𐅑", val!("𐅑"), "64f0908591", false, ToOwned::to_owned),
+    case('𐅑', val!('𐅑'), "64f0908591", false, same),
+    case("streaming", val!("streaming"), "7f657374726561646d696e67ff", true, ToOwned::to_owned),
+    case(cbor!([]).unwrap(), Vec::<Value>::new().into(), "80", false, same),
+    case(cbor!([]).unwrap(), Vec::<Value>::new().into(), "9fff", true, same),
+    case(cbor!([1, 2, 3]).unwrap(), cbor!([1, 2, 3]).unwrap(), "83010203", false, same),
+    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), cbor!([1, [2, 3], [4, 5]]).unwrap(), "8301820203820405", false, same),
+    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), cbor!([1, [2, 3], [4, 5]]).unwrap(), "9f018202039f0405ffff", true, same),
+    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), cbor!([1, [2, 3], [4, 5]]).unwrap(), "9f01820203820405ff", true, same),
+    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), cbor!([1, [2, 3], [4, 5]]).unwrap(), "83018202039f0405ff", true, same),
+    case(cbor!([1, [2, 3], [4, 5]]).unwrap(), cbor!([1, [2, 3], [4, 5]]).unwrap(), "83019f0203ff820405", true, same),
+    case((1..=25).collect::<Vec<u8>>(), (1..=25).map(|x| x.into()).collect::<Vec<Value>>().into(), "98190102030405060708090a0b0c0d0e0f101112131415161718181819", false, same),
+    case((1..=25).collect::<Vec<u8>>(), (1..=25).map(|x| x.into()).collect::<Vec<Value>>().into(), "9f0102030405060708090a0b0c0d0e0f101112131415161718181819ff", true, same),
+    case(HashMap::<Value, Value>::new(), Value::Map(vec![].into()), "a0", false, same),
+    case(BTreeMap::<Value, Value>::new(), Value::Map(vec![].into()), "a0", false, same),
+    case(map!{1 => 2, 3 => 4}, cbor!({1 => 2, 3 => 4}).unwrap(), "a201020304", false, same),
+    case(cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), "a26161016162820203", false, same),
+    case(cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), "bf61610161629f0203ffff", true, same),
+    case(cbor!(["a", {"b" => "c"}]).unwrap(), cbor!(["a", {"b" => "c"}]).unwrap(), "826161a161626163", false, same),
+    case(cbor!(["a", {"b" => "c"}]).unwrap(), cbor!(["a", {"b" => "c"}]).unwrap(), "826161bf61626163ff", true, same),
+    case(cbor!({"Fun" => true, "Amt" => -2}).unwrap(), cbor!({"Fun" => true, "Amt" => -2}).unwrap(), "bf6346756ef563416d7421ff", true, same),
+    case(map_big(), vmap_big(), "a56161614161626142616361436164614461656145", false, same),
+    case(Option::<u8>::None, Value::Null, "f6", false, same), // Not In RFC
+    case(Option::Some(7u8), val!(7u8), "07", false, same), // Not In RFC
+    case((), Value::Null, "f6", false, same), // Not In RFC
+    case(UnitStruct, Value::Null, "f6", false, same), // Not In RFC
+    case(Newtype(123), val!(123u8), "187b", false, same), // Not In RFC
+    case((22u8, 23u16), cbor!([22, 23]).unwrap(), "821617", false, same), // Not In RFC
+    case(TupleStruct(33, 34), cbor!([33, 34]).unwrap(), "8218211822", false, same), // Not In RFC
+    case(Enum::Unit, cbor!("Unit").unwrap(), "64556e6974", false, same), // Not In RFC
+    case(Enum::Newtype(45), cbor!({"Newtype" => 45}).unwrap(), "a1674e657774797065182d", false, same), // Not In RFC
+    case(Enum::Tuple(56, 67), cbor!({"Tuple" => [56, 67]}).unwrap(), "a1655475706c658218381843", false, same), // Not In RFC
+    case(Enum::Struct { first: 78, second: 89 }, cbor!({ "Struct" => { "first" => 78, "second" => 89 }}).unwrap(), "a166537472756374a2656669727374184e667365636f6e641859", false, same), // Not In RFC
 )]
-fn test(value: Value, bytes: &str, alternate: bool) {
+fn codec<'de, T: Serialize + Clone, V: Debug + Eq + Deserialize<'de>, F: Fn(T) -> V>(
+    input: T,
+    value: Value,
+    bytes: &str,
+    alternate: bool,
+    equality: F,
+) {
     let bytes = hex::decode(bytes).unwrap();
 
     if !alternate {
         let mut encoded = Vec::new();
-        into_writer(&value, &mut encoded).unwrap();
+        into_writer(&input, &mut encoded).unwrap();
+        eprintln!("{:x?} == {:x?}", bytes, encoded);
         assert_eq!(bytes, encoded);
+
+        let mut encoded = Vec::new();
+        into_writer(&value, &mut encoded).unwrap();
+        eprintln!("{:x?} == {:x?}", bytes, encoded);
+        assert_eq!(bytes, encoded);
+
+        let encoded = Value::serialized(&input).unwrap();
+        eprintln!("{:x?} == {:x?}", &value, &encoded);
+        assert_eq!(&value, &encoded);
     }
 
+    let decoded: V = from_reader(&bytes[..]).unwrap();
+    let answer = equality(input.clone());
+    eprintln!("{:x?} == {:x?}", answer, decoded);
+    assert_eq!(answer, decoded);
+
     let decoded: Value = from_reader(&bytes[..]).unwrap();
+    eprintln!("{:x?} == {:x?}", &value, &decoded);
     assert_eq!(value, decoded);
+
+    let decoded: V = value.deserialized().unwrap();
+    let answer = equality(input);
+    eprintln!("{:x?} == {:x?}", answer, decoded);
+    assert_eq!(answer, decoded);
+}
+
+#[inline]
+fn same<T>(x: T) -> T {
+    x
+}
+
+#[inline]
+fn map_big() -> BTreeMap<String, String> {
+    let mut map = BTreeMap::new();
+    map.insert("a".into(), "A".into());
+    map.insert("b".into(), "B".into());
+    map.insert("c".into(), "C".into());
+    map.insert("d".into(), "D".into());
+    map.insert("e".into(), "E".into());
+    map
+}
+
+#[inline]
+fn vmap_big() -> Value {
+    Value::Map(
+        map_big()
+            .into_iter()
+            .map(|x| (x.0.into(), x.1.into()))
+            .collect(),
+    )
+}
+
+#[inline]
+fn bigint() -> Value {
+    let bytes = hex::decode("0000000000000000000000000000000000000001").unwrap();
+    Value::Tag(2, Value::Bytes(bytes).into())
+}
+
+#[derive(Deserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq)]
+struct UnitStruct;
+
+#[derive(Deserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq)]
+struct TupleStruct(u8, u16);
+
+#[derive(Deserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq)]
+struct Newtype(u8);
+
+#[derive(Deserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq)]
+enum Enum {
+    Unit,
+    Newtype(u8),
+    Tuple(u8, u16),
+    Struct { first: u8, second: u16 },
 }
