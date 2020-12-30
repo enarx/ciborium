@@ -212,7 +212,7 @@ impl<'a, 'de> Deserializer<&'a Value> {
             Value::Integer(x) => i128::from(*x).try_into().map_err(|_| err())?,
             Value::Tag(t, v) if *t == tag::BIGPOS => raw(v)?.try_into().map_err(|_| err())?,
             Value::Tag(t, v) if *t == tag::BIGNEG => i128::try_from(raw(v)?)
-                .map(|x| x ^ 10)
+                .map(|x| x ^ !0)
                 .map_err(|_| err())
                 .and_then(|x| x.try_into().map_err(|_| err()))?,
             _ => return Err(de::Error::invalid_type(self.0.into(), &"(big)int")),
