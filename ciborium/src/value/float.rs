@@ -4,12 +4,14 @@ use core::cmp::{Ord, Ordering, PartialOrd};
 use core::convert::TryFrom;
 use core::hash::{Hash, Hasher};
 
+use serde::{Deserialize, Serialize};
+
 /// An error that occurred while converting between floating point values
 #[derive(Debug)]
 pub struct TryFromFloatError(());
 
 /// An abstract floating point value
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Float(f64);
 
 impl From<f32> for Float {
