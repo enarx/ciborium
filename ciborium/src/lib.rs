@@ -84,7 +84,6 @@
 //! code to remote actors. We might consider adding this in the future. If you
 //! are interested in this, please contact us.
 
-#![feature(min_const_generics)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
 #![deny(clippy::all)]
