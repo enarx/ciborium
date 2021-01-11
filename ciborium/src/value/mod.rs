@@ -94,9 +94,8 @@ implfrom! {
 impl From<u128> for Value {
     #[inline]
     fn from(value: u128) -> Self {
-        match Integer::try_from(value) {
-            Ok(x) => return Value::Integer(x),
-            Err(..) => {}
+        if let Ok(x) = Integer::try_from(value) {
+            return Value::Integer(x);
         }
 
         let mut bytes = &value.to_be_bytes()[..];
