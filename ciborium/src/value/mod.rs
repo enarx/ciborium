@@ -110,9 +110,8 @@ impl From<u128> for Value {
 impl From<i128> for Value {
     #[inline]
     fn from(value: i128) -> Self {
-        match Integer::try_from(value) {
-            Ok(x) => return Value::Integer(x),
-            Err(..) => {}
+        if let Ok(x) = Integer::try_from(value) {
+            return Value::Integer(x);
         }
 
         let (tag, raw) = match value.is_negative() {
