@@ -23,6 +23,9 @@ jobs:
           - {name: ciborium-ll}
           - {name: ciborium}
           - {name: ciborium, feat: std}
+          - {name: ciborium-io}
+          - {name: ciborium-io, feat: alloc}
+          - {name: ciborium-io, feat: std}
         profile:
           - {name: debug}
           - {name: release, flag: --release}

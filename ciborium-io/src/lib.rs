@@ -163,3 +163,103 @@ impl Write for alloc::vec::Vec<u8> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn read_eof() {
+        let mut reader = &[1u8; 0][..];
+        let mut buffer = [0u8; 1];
+
+        reader.read_exact(&mut buffer[..]).unwrap_err();
+    }
+
+    #[test]
+    fn read_one() {
+        let mut reader = &[1u8; 1][..];
+        let mut buffer = [0u8; 1];
+
+        reader.read_exact(&mut buffer[..]).unwrap();
+        assert_eq!(buffer[0], 1);
+
+        reader.read_exact(&mut buffer[..]).unwrap_err();
+    }
+
+    #[test]
+    fn read_two() {
+        let mut reader = &[1u8; 2][..];
+        let mut buffer = [0u8; 1];
+
+        reader.read_exact(&mut buffer[..]).unwrap();
+        assert_eq!(buffer[0], 1);
+
+        reader.read_exact(&mut buffer[..]).unwrap();
+        assert_eq!(buffer[0], 1);
+
+        reader.read_exact(&mut buffer[..]).unwrap_err();
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn read_std() {
+        let mut reader = std::io::repeat(1);
+        let mut buffer = [0u8; 2];
+
+        reader.read_exact(&mut buffer[..]).unwrap();
+        assert_eq!(buffer[0], 1);
+        assert_eq!(buffer[1], 1);
+    }
+
+    #[test]
+    fn write_oos() {
+        let mut writer = &mut [0u8; 0][..];
+
+        writer.write_all(&[1u8; 1][..]).unwrap_err();
+    }
+
+    #[test]
+    fn write_one() {
+        let mut buffer = [0u8; 1];
+        let mut writer = &mut buffer[..];
+
+        writer.write_all(&[1u8; 1][..]).unwrap();
+        writer.write_all(&[1u8; 1][..]).unwrap_err();
+        assert_eq!(buffer[0], 1);
+    }
+
+    #[test]
+    fn write_two() {
+        let mut buffer = [0u8; 2];
+        let mut writer = &mut buffer[..];
+
+        writer.write_all(&[1u8; 1][..]).unwrap();
+        writer.write_all(&[1u8; 1][..]).unwrap();
+        writer.write_all(&[1u8; 1][..]).unwrap_err();
+        assert_eq!(buffer[0], 1);
+        assert_eq!(buffer[1], 1);
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn write_vec() {
+        let mut buffer = alloc::vec::Vec::new();
+
+        buffer.write_all(&[1u8; 1][..]).unwrap();
+        buffer.write_all(&[1u8; 1][..]).unwrap();
+
+        assert_eq!(buffer.len(), 2);
+        assert_eq!(buffer[0], 1);
+        assert_eq!(buffer[1], 1);
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn write_std() {
+        let mut writer = std::io::sink();
+
+        writer.write_all(&[1u8; 1][..]).unwrap();
+        writer.write_all(&[1u8; 1][..]).unwrap();
+    }
+}
