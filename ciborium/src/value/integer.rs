@@ -45,7 +45,7 @@ impl core::convert::TryFrom<i128> for Integer {
     fn try_from(value: i128) -> Result<Self, Self::Error> {
         u64::try_from(match value.is_negative() {
             false => value,
-            true => value ^ !0,
+            true => -value,
         })?;
 
         Ok(Integer(value))
