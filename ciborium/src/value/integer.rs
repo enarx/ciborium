@@ -27,6 +27,22 @@ macro_rules! implfrom {
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Integer(i128);
 
+impl Integer {
+    /// Gets a reference to the intenal value stored in the integer.
+    ///
+    /// ```
+    /// # use ciborium::value::Integer;
+    /// #
+    /// let num: Integer = 17.into();
+    ///
+    /// // We can read the number
+    /// assert_eq!(num.value(), &17_i128);
+    /// ```
+    pub fn value(&self) -> &i128 {
+        &self.0
+    }
+}
+
 implfrom! {
     u8 u16 u32 u64
     i8 i16 i32 i64
