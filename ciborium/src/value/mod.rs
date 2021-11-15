@@ -48,6 +48,147 @@ pub enum Value {
     Map(Vec<(Value, Value)>),
 }
 
+impl Value {
+    /// Returns true if the `Value` is a Map. Returns false otherwise.
+    ///
+    /// For any Value on which `is_map` returns true, `as_map` and
+    /// `as_map_mut` are guaranteed to return the map representation of the
+    /// map.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Map(
+    ///     vec![
+    ///         (Value::Text(String::from("foo")), Value::Text(String::from("bar")))
+    ///     ]
+    /// );
+    ///
+    /// assert!(value.is_map());
+    /// ```
+    pub fn is_map(&self) -> bool {
+        self.as_map().is_some()
+    }
+
+    /// If the `Value` is a Map, returns the associated Map data. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Map(
+    ///     vec![
+    ///         (Value::Text(String::from("foo")), Value::Text(String::from("bar")))
+    ///     ]
+    /// );
+    ///
+    /// // The length of data is 1 entry (1 key/value pair).
+    /// assert_eq!(value.as_map().unwrap().len(), 1);
+    ///
+    /// // The content of the first element is what we expect
+    /// assert_eq!(
+    ///     value.as_map().unwrap().get(0).unwrap(),
+    ///     &(Value::Text(String::from("foo")), Value::Text(String::from("bar")))
+    /// );
+    /// ```
+    pub fn as_map(&self) -> Option<&Vec<(Value, Value)>> {
+        match *self {
+            Value::Map(ref map) => Some(map),
+            _ => None,
+        }
+    }
+
+    /// If the `Value` is a Map, returns the associated mutable Vec.
+    /// Returns None otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let mut value = Value::Map(
+    ///     vec![
+    ///         (Value::Text(String::from("foo")), Value::Text(String::from("bar")))
+    ///     ]
+    /// );
+    ///
+    /// value.as_map_mut().unwrap().clear();
+    /// assert_eq!(value, Value::Map(vec![]));
+    /// ```
+    pub fn as_map_mut(&mut self) -> Option<&mut Vec<(Value, Value)>> {
+        match *self {
+            Value::Map(ref mut map) => Some(map),
+            _ => None,
+        }
+    }
+
+    /// Returns true if the `Value` is an Array. Returns false otherwise.
+    ///
+    /// For any Value on which `is_array` returns true, `as_array` and
+    /// `as_array_mut` are guaranteed to return the vector representing the
+    /// array.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Array(
+    ///     vec![
+    ///         Value::Text(String::from("foo")),
+    ///         Value::Text(String::from("bar"))
+    ///     ]
+    /// );
+    ///
+    /// assert!(value.is_array());
+    /// ```
+    pub fn is_array(&self) -> bool {
+        self.as_array().is_some()
+    }
+
+    /// If the `Value` is an Array, returns the associated vector. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Array(
+    ///     vec![
+    ///         Value::Text(String::from("foo")),
+    ///         Value::Text(String::from("bar"))
+    ///     ]
+    /// );
+    ///
+    /// // The length of `value` is 2 elements.
+    /// assert_eq!(value.as_array().unwrap().len(), 2);
+    /// ```
+    pub fn as_array(&self) -> Option<&Vec<Value>> {
+        match *self {
+            Value::Array(ref array) => Some(&*array),
+            _ => None,
+        }
+    }
+
+    /// If the `Value` is an Array, returns the associated mutable vector.
+    /// Returns None otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let mut value = Value::Array(
+    ///     vec![
+    ///         Value::Text(String::from("foo")),
+    ///         Value::Text(String::from("bar"))
+    ///     ]
+    /// );
+    ///
+    /// value.as_array_mut().unwrap().clear();
+    /// assert_eq!(value, Value::Array(vec![]));
+    /// ```
+    pub fn as_array_mut(&mut self) -> Option<&mut Vec<Value>> {
+        match *self {
+            Value::Array(ref mut list) => Some(list),
+            _ => None,
+        }
+    }
+}
+
 macro_rules! implfrom {
     ($($v:ident($t:ty)),+ $(,)?) => {
         $(
