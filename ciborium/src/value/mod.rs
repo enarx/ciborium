@@ -49,6 +49,37 @@ pub enum Value {
 }
 
 impl Value {
+    /// Returns true if the `Value` is an `Integer`. Returns false otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Integer(17.into());
+    ///
+    /// assert!(value.is_integer());
+    /// ```
+    pub fn is_integer(&self) -> bool {
+        self.as_integer().is_some()
+    }
+
+    /// If the `Value` is a `Integer`, returns the associated Integer data. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Integer(17.into());
+    ///
+    /// // We can read the number
+    /// assert_eq!(value.as_integer().unwrap().value(), &17_i128);
+    /// ```
+    pub fn as_integer(&self) -> Option<&Integer> {
+        match *self {
+            Value::Integer(ref int) => Some(int),
+            _ => None,
+        }
+    }
+
     /// Returns true if the `Value` is a Map. Returns false otherwise.
     ///
     /// For any Value on which `is_map` returns true, `as_map` and
