@@ -159,6 +159,74 @@ impl Value {
         }
     }
 
+    /// Returns true if the `Value` is a `Text`. Returns false otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Text(String::from("hello"));
+    ///
+    /// assert!(value.is_text());
+    /// ```
+    pub fn is_text(&self) -> bool {
+        self.as_text().is_some()
+    }
+
+    /// If the `Value` is a `Text`, returns the associated `String` data. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Text(String::from("hello"));
+    ///
+    /// // We can read the number
+    /// assert_eq!(value.as_text().unwrap(), &String::from("hello"));
+    /// ```
+    pub fn as_text(&self) -> Option<&String> {
+        match *self {
+            Value::Text(ref s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// If the `Value` is a `Text`, returns the associated mutable `String` data. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let mut value = Value::Text(String::from("hello"));
+    /// value.as_text_mut().unwrap().clear();
+    ///
+    /// // We can read the number
+    /// assert_eq!(value.as_text().unwrap(), &String::from(""));
+    /// ```
+    pub fn as_text_mut(&mut self) -> Option<&mut String> {
+        match *self {
+            Value::Text(ref mut s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// If the `Value` is a `Text`, returns the associated `String` as an `&str`. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Text(String::from("hello"));
+    ///
+    /// // We can read the number
+    /// assert_eq!(value.as_str().unwrap(), "hello");
+    /// ```
+    pub fn as_str(&self) -> Option<&str> {
+        match *self {
+            Value::Text(ref s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+
     /// Returns true if the `Value` is an Array. Returns false otherwise.
     ///
     /// For any Value on which `is_array` returns true, `as_array` and
