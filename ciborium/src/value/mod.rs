@@ -128,6 +128,37 @@ impl Value {
         }
     }
 
+    /// Returns true if the `Value` is a `Float`. Returns false otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Float(17.0.into());
+    ///
+    /// assert!(value.is_float());
+    /// ```
+    pub fn is_float(&self) -> bool {
+        self.as_float().is_some()
+    }
+
+    /// If the `Value` is a `Float`, returns the associated float data. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Float(17.0.into());
+    ///
+    /// // We can read the number
+    /// assert_eq!(value.as_float().unwrap().value(), &17.0_f64);
+    /// ```
+    pub fn as_float(&self) -> Option<&Float> {
+        match *self {
+            Value::Float(ref f) => Some(f),
+            _ => None,
+        }
+    }
+
     /// Returns true if the `Value` is an Array. Returns false otherwise.
     ///
     /// For any Value on which `is_array` returns true, `as_array` and

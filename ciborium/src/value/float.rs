@@ -14,6 +14,22 @@ pub struct TryFromFloatError(());
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Float(f64);
 
+impl Float {
+    /// Gets a reference to the internal value stored in the integer.
+    ///
+    /// ```
+    /// # use ciborium::value::Float;
+    /// #
+    /// let num: Float = 17.0.into();
+    ///
+    /// // We can read the number
+    /// assert_eq!(num.value(), &17.0);
+    /// ```
+    pub fn value(&self) -> &f64 {
+        &self.0
+    }
+}
+
 impl From<f32> for Float {
     #[inline]
     fn from(value: f32) -> Self {
