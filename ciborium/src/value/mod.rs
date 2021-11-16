@@ -271,6 +271,60 @@ impl Value {
         matches!(self, Value::Null)
     }
 
+    /// Returns true if the `Value` is a `Tag`. Returns false otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Tag(61, Box::from(Value::Null));
+    ///
+    /// assert!(value.is_tag());
+    /// ```
+    pub fn is_tag(&self) -> bool {
+        self.as_tag().is_some()
+    }
+
+    /// If the `Value` is a `Tag`, returns the associated tag data. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Tag(61, Box::from(Value::Bytes(vec![104, 101, 108, 108, 111])));
+    ///
+    /// // We can read the number
+    /// let (tag, data) = value.as_tag().unwrap();
+    /// assert_eq!(tag, &61);
+    /// assert_eq!(data, &Value::Bytes(vec![104, 101, 108, 108, 111]));
+    /// ```
+    pub fn as_tag(&self) -> Option<(&u64, &Value)> {
+        match &*self {
+            Value::Tag(ref tag, data) => Some((tag, data)),
+            _ => None,
+        }
+    }
+
+    /// If the `Value` is a `Tag`, returns the associated tag data. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let mut value = Value::Tag(61, Box::from(Value::Bytes(vec![104, 101, 108, 108, 111])));
+    ///
+    /// // We can read the number
+    /// let (tag, mut data) = value.as_tag_mut().unwrap();
+    /// data.as_bytes_mut().unwrap().clear();
+    /// assert_eq!(tag, &61);
+    /// assert_eq!(data, &Value::Bytes(vec![]));
+    /// ```
+    pub fn as_tag_mut(&mut self) -> Option<(&u64, &mut Value)> {
+        match *self {
+            Value::Tag(ref tag, ref mut data) => Some((tag, data.as_mut())),
+            _ => None,
+        }
+    }
+
     /// Returns true if the `Value` is an Array. Returns false otherwise.
     ///
     /// For any Value on which `is_array` returns true, `as_array` and
