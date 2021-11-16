@@ -62,8 +62,8 @@ impl Value {
         self.as_integer().is_some()
     }
 
-    /// If the `Value` is a `Integer`, returns the associated Integer data. Returns None
-    /// otherwise.
+    /// If the `Value` is a `Integer`, returns a reference to the associated `Integer` data.
+    /// Returns None otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
@@ -93,8 +93,8 @@ impl Value {
         self.as_bytes().is_some()
     }
 
-    /// If the `Value` is a `Bytes`, returns the associated bytes vector. Returns None
-    /// otherwise.
+    /// If the `Value` is a `Bytes`, returns a reference to the associated bytes vector.
+    /// Returns None otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
@@ -110,8 +110,8 @@ impl Value {
         }
     }
 
-    /// If the `Value` is a `Bytes`, returns a mutable reference to the associated bytes vector. Returns None
-    /// otherwise.
+    /// If the `Value` is a `Bytes`, returns a mutable reference to the associated bytes vector.
+    /// Returns None otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
@@ -141,15 +141,15 @@ impl Value {
         self.as_float().is_some()
     }
 
-    /// If the `Value` is a `Float`, returns the associated float data. Returns None
-    /// otherwise.
+    /// If the `Value` is a `Float`, returns a reference to the associated float data.
+    /// Returns None otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
     /// #
     /// let value = Value::Float(17.0.into());
     ///
-    /// // We can read the number
+    /// // We can read the float number
     /// assert_eq!(value.as_float().unwrap().value(), &17.0_f64);
     /// ```
     pub fn as_float(&self) -> Option<&Float> {
@@ -172,15 +172,15 @@ impl Value {
         self.as_text().is_some()
     }
 
-    /// If the `Value` is a `Text`, returns the associated `String` data. Returns None
-    /// otherwise.
+    /// If the `Value` is a `Text`, returns a reference to the associated `String` data.
+    /// Returns None otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
     /// #
     /// let value = Value::Text(String::from("hello"));
     ///
-    /// // We can read the number
+    /// // We can read the String
     /// assert_eq!(value.as_text().unwrap(), &String::from("hello"));
     /// ```
     pub fn as_text(&self) -> Option<&String> {
@@ -190,8 +190,8 @@ impl Value {
         }
     }
 
-    /// If the `Value` is a `Text`, returns the associated mutable `String` data. Returns None
-    /// otherwise.
+    /// If the `Value` is a `Text`, returns a mutable reference to the associated `String` data.
+    /// Returns None otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
@@ -199,7 +199,6 @@ impl Value {
     /// let mut value = Value::Text(String::from("hello"));
     /// value.as_text_mut().unwrap().clear();
     ///
-    /// // We can read the number
     /// assert_eq!(value.as_text().unwrap(), &String::from(""));
     /// ```
     pub fn as_text_mut(&mut self) -> Option<&mut String> {
@@ -217,7 +216,6 @@ impl Value {
     /// #
     /// let value = Value::Text(String::from("hello"));
     ///
-    /// // We can read the number
     /// assert_eq!(value.as_str().unwrap(), "hello");
     /// ```
     pub fn as_str(&self) -> Option<&str> {
@@ -240,7 +238,7 @@ impl Value {
         self.as_bool().is_some()
     }
 
-    /// If the `Value` is a `Bool`, returns the associated boolean value. Returns None
+    /// If the `Value` is a `Bool`, returns a copy of the associated boolean value. Returns None
     /// otherwise.
     ///
     /// ```
@@ -248,7 +246,6 @@ impl Value {
     /// #
     /// let value = Value::Bool(false);
     ///
-    /// // We can read the boolean
     /// assert_eq!(value.as_bool().unwrap(), false);
     /// ```
     pub fn as_bool(&self) -> Option<bool> {
@@ -284,15 +281,14 @@ impl Value {
         self.as_tag().is_some()
     }
 
-    /// If the `Value` is a `Tag`, returns the associated tag data. Returns None
-    /// otherwise.
+    /// If the `Value` is a `Tag`, returns the associated tag value and a reference to the tag `Value`.
+    /// Returns None otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
     /// #
     /// let value = Value::Tag(61, Box::from(Value::Bytes(vec![104, 101, 108, 108, 111])));
     ///
-    /// // We can read the number
     /// let (tag, data) = value.as_tag().unwrap();
     /// assert_eq!(tag, &61);
     /// assert_eq!(data, &Value::Bytes(vec![104, 101, 108, 108, 111]));
@@ -304,15 +300,14 @@ impl Value {
         }
     }
 
-    /// If the `Value` is a `Tag`, returns the associated tag data. Returns None
-    /// otherwise.
+    /// If the `Value` is a `Tag`, returns the associated tag value and a mutable reference
+    /// to the tag `Value`. Returns None otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
     /// #
     /// let mut value = Value::Tag(61, Box::from(Value::Bytes(vec![104, 101, 108, 108, 111])));
     ///
-    /// // We can read the number
     /// let (tag, mut data) = value.as_tag_mut().unwrap();
     /// data.as_bytes_mut().unwrap().clear();
     /// assert_eq!(tag, &61);
@@ -326,10 +321,6 @@ impl Value {
     }
 
     /// Returns true if the `Value` is an Array. Returns false otherwise.
-    ///
-    /// For any Value on which `is_array` returns true, `as_array` and
-    /// `as_array_mut` are guaranteed to return the vector representing the
-    /// array.
     ///
     /// ```
     /// # use ciborium::value::Value;
@@ -347,7 +338,7 @@ impl Value {
         self.as_array().is_some()
     }
 
-    /// If the `Value` is an Array, returns the associated vector. Returns None
+    /// If the `Value` is an Array, returns a reference to the associated vector. Returns None
     /// otherwise.
     ///
     /// ```
@@ -370,7 +361,7 @@ impl Value {
         }
     }
 
-    /// If the `Value` is an Array, returns the associated mutable vector.
+    /// If the `Value` is an Array, returns a mutable reference to the associated vector.
     /// Returns None otherwise.
     ///
     /// ```
@@ -395,10 +386,6 @@ impl Value {
 
     /// Returns true if the `Value` is a Map. Returns false otherwise.
     ///
-    /// For any Value on which `is_map` returns true, `as_map` and
-    /// `as_map_mut` are guaranteed to return the map representation of the
-    /// map.
-    ///
     /// ```
     /// # use ciborium::value::Value;
     /// #
@@ -414,7 +401,7 @@ impl Value {
         self.as_map().is_some()
     }
 
-    /// If the `Value` is a Map, returns the associated Map data. Returns None
+    /// If the `Value` is a Map, returns a reference to the associated Map data. Returns None
     /// otherwise.
     ///
     /// ```
@@ -442,7 +429,7 @@ impl Value {
         }
     }
 
-    /// If the `Value` is a Map, returns the associated mutable Vec.
+    /// If the `Value` is a Map, returns a mutable reference to the associated Map Data.
     /// Returns None otherwise.
     ///
     /// ```
@@ -456,6 +443,7 @@ impl Value {
     ///
     /// value.as_map_mut().unwrap().clear();
     /// assert_eq!(value, Value::Map(vec![]));
+    /// assert_eq!(value.as_map().unwrap().len(), 0);
     /// ```
     pub fn as_map_mut(&mut self) -> Option<&mut Vec<(Value, Value)>> {
         match *self {
