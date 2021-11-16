@@ -258,6 +258,19 @@ impl Value {
         }
     }
 
+    /// Returns true if the `Value` is a `Null`. Returns false otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Null;
+    ///
+    /// assert!(value.is_null());
+    /// ```
+    pub fn is_null(&self) -> bool {
+        matches!(self, Value::Null)
+    }
+
     /// Returns true if the `Value` is an Array. Returns false otherwise.
     ///
     /// For any Value on which `is_array` returns true, `as_array` and
