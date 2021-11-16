@@ -227,6 +227,37 @@ impl Value {
         }
     }
 
+    /// Returns true if the `Value` is a `Bool`. Returns false otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Bool(false);
+    ///
+    /// assert!(value.is_bool());
+    /// ```
+    pub fn is_bool(&self) -> bool {
+        self.as_bool().is_some()
+    }
+
+    /// If the `Value` is a `Bool`, returns the associated boolean value. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Bool(false);
+    ///
+    /// // We can read the boolean
+    /// assert_eq!(value.as_bool().unwrap(), false);
+    /// ```
+    pub fn as_bool(&self) -> Option<bool> {
+        match *self {
+            Value::Bool(b) => Some(b),
+            _ => None,
+        }
+    }
+
     /// Returns true if the `Value` is an Array. Returns false otherwise.
     ///
     /// For any Value on which `is_array` returns true, `as_array` and
