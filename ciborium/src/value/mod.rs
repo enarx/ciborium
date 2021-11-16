@@ -80,73 +80,50 @@ impl Value {
         }
     }
 
-    /// Returns true if the `Value` is a Map. Returns false otherwise.
-    ///
-    /// For any Value on which `is_map` returns true, `as_map` and
-    /// `as_map_mut` are guaranteed to return the map representation of the
-    /// map.
+    /// Returns true if the `Value` is a `Bytes`. Returns false otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
     /// #
-    /// let value = Value::Map(
-    ///     vec![
-    ///         (Value::Text(String::from("foo")), Value::Text(String::from("bar")))
-    ///     ]
-    /// );
+    /// let value = Value::Bytes(vec![104, 101, 108, 108, 111]);
     ///
-    /// assert!(value.is_map());
+    /// assert!(value.is_bytes());
     /// ```
-    pub fn is_map(&self) -> bool {
-        self.as_map().is_some()
+    pub fn is_bytes(&self) -> bool {
+        self.as_bytes().is_some()
     }
 
-    /// If the `Value` is a Map, returns the associated Map data. Returns None
+    /// If the `Value` is a `Bytes`, returns the associated bytes vector. Returns None
     /// otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
     /// #
-    /// let value = Value::Map(
-    ///     vec![
-    ///         (Value::Text(String::from("foo")), Value::Text(String::from("bar")))
-    ///     ]
-    /// );
+    /// let value = Value::Bytes(vec![104, 101, 108, 108, 111]);
     ///
-    /// // The length of data is 1 entry (1 key/value pair).
-    /// assert_eq!(value.as_map().unwrap().len(), 1);
-    ///
-    /// // The content of the first element is what we expect
-    /// assert_eq!(
-    ///     value.as_map().unwrap().get(0).unwrap(),
-    ///     &(Value::Text(String::from("foo")), Value::Text(String::from("bar")))
-    /// );
+    /// assert_eq!(std::str::from_utf8(value.as_bytes().unwrap()).unwrap(), "hello");
     /// ```
-    pub fn as_map(&self) -> Option<&Vec<(Value, Value)>> {
+    pub fn as_bytes(&self) -> Option<&Vec<u8>> {
         match *self {
-            Value::Map(ref map) => Some(map),
+            Value::Bytes(ref bytes) => Some(bytes),
             _ => None,
         }
     }
 
-    /// If the `Value` is a Map, returns the associated mutable Vec.
-    /// Returns None otherwise.
+    /// If the `Value` is a `Bytes`, returns a mutable reference to the associated bytes vector. Returns None
+    /// otherwise.
     ///
     /// ```
     /// # use ciborium::value::Value;
     /// #
-    /// let mut value = Value::Map(
-    ///     vec![
-    ///         (Value::Text(String::from("foo")), Value::Text(String::from("bar")))
-    ///     ]
-    /// );
+    /// let mut value = Value::Bytes(vec![104, 101, 108, 108, 111]);
+    /// value.as_bytes_mut().unwrap().clear();
     ///
-    /// value.as_map_mut().unwrap().clear();
-    /// assert_eq!(value, Value::Map(vec![]));
+    /// assert_eq!(value, Value::Bytes(vec![]));
     /// ```
-    pub fn as_map_mut(&mut self) -> Option<&mut Vec<(Value, Value)>> {
+    pub fn as_bytes_mut(&mut self) -> Option<&mut Vec<u8>> {
         match *self {
-            Value::Map(ref mut map) => Some(map),
+            Value::Bytes(ref mut bytes) => Some(bytes),
             _ => None,
         }
     }
@@ -215,6 +192,77 @@ impl Value {
     pub fn as_array_mut(&mut self) -> Option<&mut Vec<Value>> {
         match *self {
             Value::Array(ref mut list) => Some(list),
+            _ => None,
+        }
+    }
+
+    /// Returns true if the `Value` is a Map. Returns false otherwise.
+    ///
+    /// For any Value on which `is_map` returns true, `as_map` and
+    /// `as_map_mut` are guaranteed to return the map representation of the
+    /// map.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Map(
+    ///     vec![
+    ///         (Value::Text(String::from("foo")), Value::Text(String::from("bar")))
+    ///     ]
+    /// );
+    ///
+    /// assert!(value.is_map());
+    /// ```
+    pub fn is_map(&self) -> bool {
+        self.as_map().is_some()
+    }
+
+    /// If the `Value` is a Map, returns the associated Map data. Returns None
+    /// otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let value = Value::Map(
+    ///     vec![
+    ///         (Value::Text(String::from("foo")), Value::Text(String::from("bar")))
+    ///     ]
+    /// );
+    ///
+    /// // The length of data is 1 entry (1 key/value pair).
+    /// assert_eq!(value.as_map().unwrap().len(), 1);
+    ///
+    /// // The content of the first element is what we expect
+    /// assert_eq!(
+    ///     value.as_map().unwrap().get(0).unwrap(),
+    ///     &(Value::Text(String::from("foo")), Value::Text(String::from("bar")))
+    /// );
+    /// ```
+    pub fn as_map(&self) -> Option<&Vec<(Value, Value)>> {
+        match *self {
+            Value::Map(ref map) => Some(map),
+            _ => None,
+        }
+    }
+
+    /// If the `Value` is a Map, returns the associated mutable Vec.
+    /// Returns None otherwise.
+    ///
+    /// ```
+    /// # use ciborium::value::Value;
+    /// #
+    /// let mut value = Value::Map(
+    ///     vec![
+    ///         (Value::Text(String::from("foo")), Value::Text(String::from("bar")))
+    ///     ]
+    /// );
+    ///
+    /// value.as_map_mut().unwrap().clear();
+    /// assert_eq!(value, Value::Map(vec![]));
+    /// ```
+    pub fn as_map_mut(&mut self) -> Option<&mut Vec<(Value, Value)>> {
+        match *self {
+            Value::Map(ref mut map) => Some(map),
             _ => None,
         }
     }
