@@ -28,7 +28,7 @@ macro_rules! implfrom {
 pub struct Integer(i128);
 
 impl Integer {
-    /// Gets a reference to the intenal value stored in the integer.
+    /// Gets a reference to the internal value stored in the integer.
     ///
     /// ```
     /// # use ciborium::value::Integer;
