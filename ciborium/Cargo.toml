@@ -1,6 +1,6 @@
 [package]
 name = "ciborium"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Nathaniel McCallum <npmccallum@profian.com>"]
 license = "Apache-2.0"
 edition = "2021"
@@ -20,8 +20,8 @@ is-it-maintained-issue-resolution = { repository = "enarx/ciborium" }
 is-it-maintained-open-issues = { repository = "enarx/ciborium" }
 
 [dependencies]
-ciborium-ll = { path = "../ciborium-ll" }
-ciborium-io = { path = "../ciborium-io", features = ["alloc"] }
+ciborium-ll = { path = "../ciborium-ll", version = "0.2.0" }
+ciborium-io = { path = "../ciborium-io", version = "0.2.0", features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 
 [dev-dependencies]
