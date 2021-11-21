@@ -2,7 +2,6 @@
 
 //! A dynamic CBOR value
 
-mod float;
 mod integer;
 
 mod de;
@@ -10,7 +9,6 @@ mod error;
 mod ser;
 
 pub use error::Error;
-pub use float::{Float, TryFromFloatError};
 pub use integer::Integer;
 
 use alloc::{boxed::Box, string::String, vec::Vec};
@@ -18,7 +16,7 @@ use core::convert::TryFrom;
 
 /// A representation of a dynamic CBOR value that can handled dynamically
 #[non_exhaustive]
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
     /// An integer
     Integer(Integer),
@@ -27,7 +25,7 @@ pub enum Value {
     Bytes(Vec<u8>),
 
     /// A float
-    Float(Float),
+    Float(f64),
 
     /// A string
     Text(String),
@@ -150,11 +148,11 @@ impl Value {
     /// let value = Value::Float(17.0.into());
     ///
     /// // We can read the float number
-    /// assert_eq!(value.as_float().unwrap().value(), &17.0_f64);
+    /// assert_eq!(value.as_float().unwrap(), 17.0_f64);
     /// ```
-    pub fn as_float(&self) -> Option<&Float> {
+    pub fn as_float(&self) -> Option<f64> {
         match *self {
-            Value::Float(ref f) => Some(f),
+            Value::Float(f) => Some(f),
             _ => None,
         }
     }
@@ -480,7 +478,6 @@ implfrom! {
     Bytes(Vec<u8>),
     Bytes(&[u8]),
 
-    Float(Float),
     Float(f64),
     Float(f32),
 

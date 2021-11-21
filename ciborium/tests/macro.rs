@@ -4,7 +4,7 @@ extern crate alloc;
 
 use ciborium::{
     cbor,
-    value::{Float, Integer, Value, Value::Null},
+    value::{Integer, Value, Value::Null},
 };
 
 use rstest::rstest;
@@ -40,10 +40,10 @@ macro_rules! arr {
     // Numeric simple types
     case(Value::Integer(Integer::from(123)), cbor!(123).unwrap()),
     case(Value::Integer(Integer::from(-123)), cbor!(-123).unwrap()),
-    case(Value::Float(Float::from(1.23)), cbor!(1.23).unwrap()),
-    case(Value::Float(Float::from(-1.23)), cbor!(-1.23).unwrap()),
-    case(Value::Float(Float::from(2.5e+1)), cbor!(2.5e+1).unwrap()),
-    case(Value::Float(Float::from(-2.5e+1)), cbor!(-2.5e+1).unwrap()),
+    case(Value::Float(1.23), cbor!(1.23).unwrap()),
+    case(Value::Float(-1.23), cbor!(-1.23).unwrap()),
+    case(Value::Float(2.5e+1), cbor!(2.5e+1).unwrap()),
+    case(Value::Float(-2.5e+1), cbor!(-2.5e+1).unwrap()),
 
     // Simple array formulations
     case(arr![], cbor!([]).unwrap()),

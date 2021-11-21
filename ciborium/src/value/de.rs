@@ -28,7 +28,7 @@ impl<'a> From<&'a Value> for de::Unexpected<'a> {
         match value {
             Value::Bool(x) => Self::Bool(*x),
             Value::Integer(x) => Self::from(*x),
-            Value::Float(x) => Self::Float(f64::from(*x)),
+            Value::Float(x) => Self::Float(*x),
             Value::Bytes(x) => Self::Bytes(x),
             Value::Text(x) => Self::Str(x),
             Value::Array(..) => Self::Seq,
@@ -251,7 +251,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
                 }
             }
 
-            Value::Float(x) => visitor.visit_f64(f64::from(*x)),
+            Value::Float(x) => visitor.visit_f64(*x),
         }
     }
 
@@ -281,7 +281,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
         }
 
         match value {
-            Value::Float(x) => visitor.visit_f64(*x.value()),
+            Value::Float(x) => visitor.visit_f64(*x),
             _ => Err(de::Error::invalid_type(value.into(), &"f64")),
         }
     }

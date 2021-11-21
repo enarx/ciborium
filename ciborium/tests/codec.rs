@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::fmt::Debug;
 
-use ciborium::value::{Float, Value};
+use ciborium::value::Value;
 use ciborium::{cbor, de::from_reader, ser::into_writer};
 
 use rstest::rstest;
@@ -28,7 +28,7 @@ macro_rules! map {
     ($($k:expr => $v:expr),*) => {{
         let mut map = BTreeMap::new();
         $(
-            map.insert(Value::from($k), Value::from($v));
+            map.insert($k, $v);
         )*
         map
     }}
@@ -177,55 +177,55 @@ macro_rules! map {
     case(-1i32,  val!(-1i32),  "3b0000000000000000", true, same),
     case(-1i64,  val!(-1i64),  "3b0000000000000000", true, same),
     case(-1i128, val!(-1i128), "3b0000000000000000", true, same),
-    case(0.0f32, val!(0.0f32), "f90000", false, Float::from),
-    case(0.0f64, val!(0.0f64), "f90000", false, Float::from),
-    case(-0.0f32, val!(-0.0f32), "f98000", false, Float::from),
-    case(-0.0f64, val!(-0.0f64), "f98000", false, Float::from),
-    case(1.0f32, val!(1.0f32), "f93c00", false, Float::from),
-    case(1.0f64, val!(1.0f64), "f93c00", false, Float::from),
-    case(1.1f32, val!(1.1f32), "fa3f8ccccd", false, Float::from), // Not In RFC
-    case(1.1f64, val!(1.1f64), "fb3ff199999999999a", false, Float::from),
-    case(1.5f32, val!(1.5f32), "f93e00", false, Float::from),
-    case(1.5f64, val!(1.5f64), "f93e00", false, Float::from),
-    case(65504.0f32, val!(65504.0f32), "f97bff", false, Float::from),
-    case(65504.0f64, val!(65504.0f64), "f97bff", false, Float::from),
-    case(100000.0f32, val!(100000.0f32), "fa47c35000", false, Float::from),
-    case(100000.0f64, val!(100000.0f64), "fa47c35000", false, Float::from),
-    case(3.4028234663852886e+38f32, val!(3.4028234663852886e+38f32), "fa7f7fffff", false, Float::from),
-    case(3.4028234663852886e+38f64, val!(3.4028234663852886e+38f64), "fa7f7fffff", false, Float::from),
-    case(1.0e+300f64, val!(1.0e+300f64), "fb7e37e43c8800759c", false, Float::from),
-    case(5.960464477539063e-8f32, val!(5.960464477539063e-8f32), "f90001", false, Float::from),
-    case(5.960464477539063e-8f64, val!(5.960464477539063e-8f64), "f90001", false, Float::from),
-    case(0.00006103515625f32, val!(0.00006103515625f32), "f90400", false, Float::from),
-    case(0.00006103515625f64, val!(0.00006103515625f64), "f90400", false, Float::from),
-    case(-4.0f32, val!(-4.0f32), "f9c400", false, Float::from),
-    case(-4.0f64, val!(-4.0f64), "f9c400", false, Float::from),
-    case(-4.1f32, val!(-4.1f32), "fac0833333", false, Float::from), // Not In RFC
-    case(-4.1f64, val!(-4.1f64), "fbc010666666666666", false, Float::from),
-    case(core::f32::INFINITY, val!(core::f32::INFINITY), "f97c00", false, Float::from),
-    case(core::f64::INFINITY, val!(core::f64::INFINITY), "f97c00", false, Float::from),
-    case(core::f32::INFINITY, val!(core::f32::INFINITY), "fa7f800000", true, Float::from),
-    case(core::f64::INFINITY, val!(core::f64::INFINITY), "fa7f800000", true, Float::from),
-    case(core::f32::INFINITY, val!(core::f32::INFINITY), "fb7ff0000000000000", true, Float::from),
-    case(core::f64::INFINITY, val!(core::f64::INFINITY), "fb7ff0000000000000", true, Float::from),
-    case(-core::f32::INFINITY, val!(-core::f32::INFINITY), "f9fc00", false, Float::from),
-    case(-core::f64::INFINITY, val!(-core::f64::INFINITY), "f9fc00", false, Float::from),
-    case(-core::f32::INFINITY, val!(-core::f32::INFINITY), "faff800000", true, Float::from),
-    case(-core::f64::INFINITY, val!(-core::f64::INFINITY), "faff800000", true, Float::from),
-    case(-core::f32::INFINITY, val!(-core::f32::INFINITY), "fbfff0000000000000", true, Float::from),
-    case(-core::f64::INFINITY, val!(-core::f64::INFINITY), "fbfff0000000000000", true, Float::from),
-    case(core::f32::NAN, val!(core::f32::NAN), "f97e00", false, Float::from),
-    case(core::f64::NAN, val!(core::f64::NAN), "f97e00", false, Float::from),
-    case(core::f32::NAN, val!(core::f32::NAN), "fa7fc00000", true, Float::from),
-    case(core::f64::NAN, val!(core::f64::NAN), "fa7fc00000", true, Float::from),
-    case(core::f32::NAN, val!(core::f32::NAN), "fb7ff8000000000000", true, Float::from),
-    case(core::f64::NAN, val!(core::f64::NAN), "fb7ff8000000000000", true, Float::from),
-    case(-core::f32::NAN, val!(-core::f32::NAN), "f9fe00", false, Float::from),            // Not In RFC
-    case(-core::f64::NAN, val!(-core::f64::NAN), "f9fe00", false, Float::from),            // Not In RFC
-    case(-core::f32::NAN, val!(-core::f32::NAN), "faffc00000", true, Float::from),         // Not In RFC
-    case(-core::f64::NAN, val!(-core::f64::NAN), "faffc00000", true, Float::from),         // Not In RFC
-    case(-core::f32::NAN, val!(-core::f32::NAN), "fbfff8000000000000", true, Float::from), // Not In RFC
-    case(-core::f64::NAN, val!(-core::f64::NAN), "fbfff8000000000000", true, Float::from), // Not In RFC
+    case(0.0f32, val!(0.0f32), "f90000", false, Float),
+    case(0.0f64, val!(0.0f64), "f90000", false, Float),
+    case(-0.0f32, val!(-0.0f32), "f98000", false, Float),
+    case(-0.0f64, val!(-0.0f64), "f98000", false, Float),
+    case(1.0f32, val!(1.0f32), "f93c00", false, Float),
+    case(1.0f64, val!(1.0f64), "f93c00", false, Float),
+    case(1.1f32, val!(1.1f32), "fa3f8ccccd", false, Float), // Not In RFC
+    case(1.1f64, val!(1.1f64), "fb3ff199999999999a", false, Float),
+    case(1.5f32, val!(1.5f32), "f93e00", false, Float),
+    case(1.5f64, val!(1.5f64), "f93e00", false, Float),
+    case(65504.0f32, val!(65504.0f32), "f97bff", false, Float),
+    case(65504.0f64, val!(65504.0f64), "f97bff", false, Float),
+    case(100000.0f32, val!(100000.0f32), "fa47c35000", false, Float),
+    case(100000.0f64, val!(100000.0f64), "fa47c35000", false, Float),
+    case(3.4028234663852886e+38f32, val!(3.4028234663852886e+38f32), "fa7f7fffff", false, Float),
+    case(3.4028234663852886e+38f64, val!(3.4028234663852886e+38f64), "fa7f7fffff", false, Float),
+    case(1.0e+300f64, val!(1.0e+300f64), "fb7e37e43c8800759c", false, Float),
+    case(5.960464477539063e-8f32, val!(5.960464477539063e-8f32), "f90001", false, Float),
+    case(5.960464477539063e-8f64, val!(5.960464477539063e-8f64), "f90001", false, Float),
+    case(0.00006103515625f32, val!(0.00006103515625f32), "f90400", false, Float),
+    case(0.00006103515625f64, val!(0.00006103515625f64), "f90400", false, Float),
+    case(-4.0f32, val!(-4.0f32), "f9c400", false, Float),
+    case(-4.0f64, val!(-4.0f64), "f9c400", false, Float),
+    case(-4.1f32, val!(-4.1f32), "fac0833333", false, Float), // Not In RFC
+    case(-4.1f64, val!(-4.1f64), "fbc010666666666666", false, Float),
+    case(core::f32::INFINITY, val!(core::f32::INFINITY), "f97c00", false, Float),
+    case(core::f64::INFINITY, val!(core::f64::INFINITY), "f97c00", false, Float),
+    case(core::f32::INFINITY, val!(core::f32::INFINITY), "fa7f800000", true, Float),
+    case(core::f64::INFINITY, val!(core::f64::INFINITY), "fa7f800000", true, Float),
+    case(core::f32::INFINITY, val!(core::f32::INFINITY), "fb7ff0000000000000", true, Float),
+    case(core::f64::INFINITY, val!(core::f64::INFINITY), "fb7ff0000000000000", true, Float),
+    case(-core::f32::INFINITY, val!(-core::f32::INFINITY), "f9fc00", false, Float),
+    case(-core::f64::INFINITY, val!(-core::f64::INFINITY), "f9fc00", false, Float),
+    case(-core::f32::INFINITY, val!(-core::f32::INFINITY), "faff800000", true, Float),
+    case(-core::f64::INFINITY, val!(-core::f64::INFINITY), "faff800000", true, Float),
+    case(-core::f32::INFINITY, val!(-core::f32::INFINITY), "fbfff0000000000000", true, Float),
+    case(-core::f64::INFINITY, val!(-core::f64::INFINITY), "fbfff0000000000000", true, Float),
+    case(core::f32::NAN, val!(core::f32::NAN), "f97e00", false, Float),
+    case(core::f64::NAN, val!(core::f64::NAN), "f97e00", false, Float),
+    case(core::f32::NAN, val!(core::f32::NAN), "fa7fc00000", true, Float),
+    case(core::f64::NAN, val!(core::f64::NAN), "fa7fc00000", true, Float),
+    case(core::f32::NAN, val!(core::f32::NAN), "fb7ff8000000000000", true, Float),
+    case(core::f64::NAN, val!(core::f64::NAN), "fb7ff8000000000000", true, Float),
+    case(-core::f32::NAN, val!(-core::f32::NAN), "f9fe00", false, Float),            // Not In RFC
+    case(-core::f64::NAN, val!(-core::f64::NAN), "f9fe00", false, Float),            // Not In RFC
+    case(-core::f32::NAN, val!(-core::f32::NAN), "faffc00000", true, Float),         // Not In RFC
+    case(-core::f64::NAN, val!(-core::f64::NAN), "faffc00000", true, Float),         // Not In RFC
+    case(-core::f32::NAN, val!(-core::f32::NAN), "fbfff8000000000000", true, Float), // Not In RFC
+    case(-core::f64::NAN, val!(-core::f64::NAN), "fbfff8000000000000", true, Float), // Not In RFC
     case(false, val!(false), "f4", false, same),
     case(true, val!(true), "f5", false, same),
     case(Value::Null, Value::Null, "f6", false, same),
@@ -254,8 +254,8 @@ macro_rules! map {
     case(cbor!([1, [2, 3], [4, 5]]).unwrap(), cbor!([1, [2, 3], [4, 5]]).unwrap(), "83019f0203ff820405", true, same),
     case((1..=25).collect::<Vec<u8>>(), (1..=25).map(|x| x.into()).collect::<Vec<Value>>().into(), "98190102030405060708090a0b0c0d0e0f101112131415161718181819", false, same),
     case((1..=25).collect::<Vec<u8>>(), (1..=25).map(|x| x.into()).collect::<Vec<Value>>().into(), "9f0102030405060708090a0b0c0d0e0f101112131415161718181819ff", true, same),
-    case(HashMap::<Value, Value>::new(), Value::Map(vec![]), "a0", false, same),
-    case(BTreeMap::<Value, Value>::new(), Value::Map(vec![]), "a0", false, same),
+    case(HashMap::<u8, u8>::new(), Value::Map(vec![]), "a0", false, same),
+    case(BTreeMap::<u8, u8>::new(), Value::Map(vec![]), "a0", false, same),
     case(map!{1 => 2, 3 => 4}, cbor!({1 => 2, 3 => 4}).unwrap(), "a201020304", false, same),
     case(cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), "a26161016162820203", false, same),
     case(cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), "bf61610161629f0203ffff", true, same),
@@ -275,7 +275,7 @@ macro_rules! map {
     case(Enum::Tuple(56, 67), cbor!({"Tuple" => [56, 67]}).unwrap(), "a1655475706c658218381843", false, same), // Not In RFC
     case(Enum::Struct { first: 78, second: 89 }, cbor!({ "Struct" => { "first" => 78, "second" => 89 }}).unwrap(), "a166537472756374a2656669727374184e667365636f6e641859", false, same), // Not In RFC
 )]
-fn codec<'de, T: Serialize + Clone, V: Debug + Eq + Deserialize<'de>, F: Fn(T) -> V>(
+fn codec<'de, T: Serialize + Clone, V: Debug + PartialEq + Deserialize<'de>, F: Fn(T) -> V>(
     input: T,
     value: Value,
     bytes: &str,
@@ -297,7 +297,7 @@ fn codec<'de, T: Serialize + Clone, V: Debug + Eq + Deserialize<'de>, F: Fn(T) -
 
         let encoded = Value::serialized(&input).unwrap();
         eprintln!("{:x?} == {:x?}", &value, &encoded);
-        assert_eq!(&value, &encoded);
+        assert!(veq(&value, &encoded));
     }
 
     let decoded: V = from_reader(&bytes[..]).unwrap();
@@ -307,7 +307,7 @@ fn codec<'de, T: Serialize + Clone, V: Debug + Eq + Deserialize<'de>, F: Fn(T) -
 
     let decoded: Value = from_reader(&bytes[..]).unwrap();
     eprintln!("{:x?} == {:x?}", &value, &decoded);
-    assert_eq!(value, decoded);
+    assert!(veq(&value, &decoded));
 
     let decoded: V = value.deserialized().unwrap();
     let answer = equality(input);
@@ -316,8 +316,42 @@ fn codec<'de, T: Serialize + Clone, V: Debug + Eq + Deserialize<'de>, F: Fn(T) -
 }
 
 #[inline]
+fn veq(lhs: &Value, rhs: &Value) -> bool {
+    if let Value::Float(l) = lhs {
+        if let Value::Float(r) = rhs {
+            return Float(*l) == Float(*r);
+        }
+    }
+
+    lhs == rhs
+}
+
+#[inline]
 fn same<T>(x: T) -> T {
     x
+}
+
+#[derive(Debug, Deserialize)]
+struct Float<T>(T);
+
+impl PartialEq for Float<f32> {
+    fn eq(&self, other: &Float<f32>) -> bool {
+        if self.0.is_nan() && other.0.is_nan() {
+            return true;
+        }
+
+        self.0 == other.0
+    }
+}
+
+impl PartialEq for Float<f64> {
+    fn eq(&self, other: &Float<f64>) -> bool {
+        if self.0.is_nan() && other.0.is_nan() {
+            return true;
+        }
+
+        self.0 == other.0
+    }
 }
 
 #[inline]

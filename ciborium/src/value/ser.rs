@@ -24,12 +24,11 @@ impl ser::Serialize for Value {
             }
 
             Value::Float(x) => {
-                if let Ok(x) = f32::try_from(*x) {
-                    serializer.serialize_f32(x)
-                } else if let Ok(x) = f64::try_from(*x) {
-                    serializer.serialize_f64(x)
+                let y = *x as f32;
+                if (y as f64).to_bits() == x.to_bits() {
+                    serializer.serialize_f32(y)
                 } else {
-                    unreachable!()
+                    serializer.serialize_f64(*x)
                 }
             }
 
