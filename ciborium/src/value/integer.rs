@@ -24,24 +24,14 @@ macro_rules! implfrom {
 }
 
 /// An abstract integer value
+///
+/// This opaque type represents an integer value which can be encoded in CBOR
+/// without resulting to big integer encoding. Larger values may be encoded
+/// using the big integer encoding as described in the CBOR RFC. See the
+/// implementations for 128-bit integer conversions on `Value` for more
+/// details.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Integer(i128);
-
-impl Integer {
-    /// Gets a reference to the internal value stored in the integer.
-    ///
-    /// ```
-    /// # use ciborium::value::Integer;
-    /// #
-    /// let num: Integer = 17.into();
-    ///
-    /// // We can read the number
-    /// assert_eq!(num.value(), &17_i128);
-    /// ```
-    pub fn value(&self) -> &i128 {
-        &self.0
-    }
-}
 
 implfrom! {
     u8 u16 u32 u64

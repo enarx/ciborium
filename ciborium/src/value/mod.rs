@@ -69,11 +69,11 @@ impl Value {
     /// let value = Value::Integer(17.into());
     ///
     /// // We can read the number
-    /// assert_eq!(value.as_integer().unwrap().value(), &17_i128);
+    /// assert_eq!(17, value.as_integer().unwrap().try_into().unwrap());
     /// ```
-    pub fn as_integer(&self) -> Option<&Integer> {
-        match *self {
-            Value::Integer(ref int) => Some(int),
+    pub fn as_integer(&self) -> Option<Integer> {
+        match self {
+            Value::Integer(int) => Some(*int),
             _ => None,
         }
     }
