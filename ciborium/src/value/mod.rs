@@ -178,9 +178,9 @@ impl Value {
     /// let value = Value::Text(String::from("hello"));
     ///
     /// // We can read the String
-    /// assert_eq!(value.as_text().unwrap(), &String::from("hello"));
+    /// assert_eq!(value.as_text().unwrap(), "hello");
     /// ```
-    pub fn as_text(&self) -> Option<&String> {
+    pub fn as_text(&self) -> Option<&str> {
         match *self {
             Value::Text(ref s) => Some(s),
             _ => None,
@@ -201,23 +201,6 @@ impl Value {
     pub fn as_text_mut(&mut self) -> Option<&mut String> {
         match *self {
             Value::Text(ref mut s) => Some(s),
-            _ => None,
-        }
-    }
-
-    /// If the `Value` is a `Text`, returns the associated `String` as an `&str`. Returns None
-    /// otherwise.
-    ///
-    /// ```
-    /// # use ciborium::value::Value;
-    /// #
-    /// let value = Value::Text(String::from("hello"));
-    ///
-    /// assert_eq!(value.as_str().unwrap(), "hello");
-    /// ```
-    pub fn as_str(&self) -> Option<&str> {
-        match *self {
-            Value::Text(ref s) => Some(s.as_str()),
             _ => None,
         }
     }
@@ -287,12 +270,12 @@ impl Value {
     /// let value = Value::Tag(61, Box::from(Value::Bytes(vec![104, 101, 108, 108, 111])));
     ///
     /// let (tag, data) = value.as_tag().unwrap();
-    /// assert_eq!(tag, &61);
+    /// assert_eq!(tag, 61);
     /// assert_eq!(data, &Value::Bytes(vec![104, 101, 108, 108, 111]));
     /// ```
-    pub fn as_tag(&self) -> Option<(&u64, &Value)> {
-        match &*self {
-            Value::Tag(ref tag, data) => Some((tag, data)),
+    pub fn as_tag(&self) -> Option<(u64, &Value)> {
+        match self {
+            Value::Tag(tag, data) => Some((*tag, data)),
             _ => None,
         }
     }
@@ -310,9 +293,9 @@ impl Value {
     /// assert_eq!(tag, &61);
     /// assert_eq!(data, &Value::Bytes(vec![]));
     /// ```
-    pub fn as_tag_mut(&mut self) -> Option<(&u64, &mut Value)> {
-        match *self {
-            Value::Tag(ref tag, ref mut data) => Some((tag, data.as_mut())),
+    pub fn as_tag_mut(&mut self) -> Option<(&mut u64, &mut Value)> {
+        match self {
+            Value::Tag(tag, data) => Some((tag, data.as_mut())),
             _ => None,
         }
     }
