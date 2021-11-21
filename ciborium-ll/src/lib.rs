@@ -225,6 +225,7 @@ mod tests {
         };
     }
 
+    #[allow(clippy::excessive_precision)]
     #[test]
     fn leaf() {
         use core::f64::{INFINITY, NAN};

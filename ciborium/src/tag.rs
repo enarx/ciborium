@@ -2,8 +2,8 @@
 
 use serde::{de, de::Error as _, forward_to_deserialize_any, ser, Deserialize, Serialize};
 
-#[serde(rename = "@@TAG@@")]
 #[derive(Deserialize, Serialize)]
+#[serde(rename = "@@TAG@@")]
 enum Internal<T> {
     #[serde(rename = "@@UNTAGGED@@")]
     Untagged(T),

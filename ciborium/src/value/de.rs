@@ -281,7 +281,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
         }
 
         match value {
-            Value::Float(x) => visitor.visit_f64(x.clone().into()),
+            Value::Float(x) => visitor.visit_f64(*x.value()),
             _ => Err(de::Error::invalid_type(value.into(), &"f64")),
         }
     }
