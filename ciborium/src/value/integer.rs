@@ -11,7 +11,7 @@ macro_rules! implfrom {
                 }
             }
 
-            impl core::convert::TryFrom<Integer> for $t {
+            impl TryFrom<Integer> for $t {
                 type Error = core::num::TryFromIntError;
 
                 #[inline]
@@ -44,7 +44,7 @@ implfrom! {
     isize
 }
 
-impl core::convert::TryFrom<i128> for Integer {
+impl TryFrom<i128> for Integer {
     type Error = core::num::TryFromIntError;
 
     #[inline]
@@ -58,7 +58,7 @@ impl core::convert::TryFrom<i128> for Integer {
     }
 }
 
-impl core::convert::TryFrom<u128> for Integer {
+impl TryFrom<u128> for Integer {
     type Error = core::num::TryFromIntError;
 
     #[inline]
@@ -74,7 +74,7 @@ impl From<Integer> for i128 {
     }
 }
 
-impl core::convert::TryFrom<Integer> for u128 {
+impl TryFrom<Integer> for u128 {
     type Error = core::num::TryFromIntError;
 
     #[inline]

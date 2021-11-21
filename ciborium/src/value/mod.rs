@@ -12,7 +12,6 @@ pub use error::Error;
 pub use integer::Integer;
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::convert::TryFrom;
 
 /// A representation of a dynamic CBOR value that can handled dynamically
 #[non_exhaustive]

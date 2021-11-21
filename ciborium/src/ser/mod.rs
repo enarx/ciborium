@@ -7,7 +7,6 @@ mod error;
 pub use error::Error;
 
 use alloc::string::ToString;
-use core::convert::TryFrom;
 
 use ciborium_io::Write;
 use ciborium_ll::*;

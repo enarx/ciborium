@@ -3,7 +3,6 @@
 use super::{Error, Value};
 
 use alloc::{vec, vec::Vec};
-use core::convert::TryFrom;
 
 use ::serde::ser::{self, SerializeMap as _, SerializeSeq as _, SerializeTupleVariant as _};
 

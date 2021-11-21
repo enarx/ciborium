@@ -7,7 +7,6 @@ mod error;
 pub use error::Error;
 
 use alloc::{string::String, vec::Vec};
-use core::convert::TryFrom;
 
 use ciborium_io::Read;
 use ciborium_ll::*;

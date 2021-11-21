@@ -1,7 +1,5 @@
 use super::*;
 
-use core::convert::TryFrom;
-
 use half::f16;
 
 /// A semantic representation of a CBOR item header

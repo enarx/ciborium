@@ -2,8 +2,6 @@ use super::*;
 
 use ciborium_io::Read;
 
-use core::convert::TryInto;
-
 /// An error that occurred while decoding
 #[derive(Debug)]
 pub enum Error<T> {
