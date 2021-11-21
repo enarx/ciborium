@@ -18,6 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         toolchain:
+          - 1.56.0
+          - stable
+          - beta
           - nightly
         crates:
           - {name: ciborium-ll}
