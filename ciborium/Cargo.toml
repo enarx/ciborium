@@ -1,6 +1,6 @@
 [package]
 name = "ciborium"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Nathaniel McCallum <npmccallum@profian.com>"]
 license = "Apache-2.0"
 edition = "2021"
