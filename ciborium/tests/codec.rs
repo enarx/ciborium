@@ -35,8 +35,8 @@ macro_rules! map {
 }
 
 // Keep the first "case" aligned to a line number ending in 1 for ease in finding tests.
+#[allow(clippy::excessive_precision)]
 #[rstest(input, value, bytes, alternate, equality,
-
 
     case(0u8,   val!(0u8),   "00", false, same),
     case(0u16,  val!(0u16),  "00", false, same),
@@ -254,8 +254,8 @@ macro_rules! map {
     case(cbor!([1, [2, 3], [4, 5]]).unwrap(), cbor!([1, [2, 3], [4, 5]]).unwrap(), "83019f0203ff820405", true, same),
     case((1..=25).collect::<Vec<u8>>(), (1..=25).map(|x| x.into()).collect::<Vec<Value>>().into(), "98190102030405060708090a0b0c0d0e0f101112131415161718181819", false, same),
     case((1..=25).collect::<Vec<u8>>(), (1..=25).map(|x| x.into()).collect::<Vec<Value>>().into(), "9f0102030405060708090a0b0c0d0e0f101112131415161718181819ff", true, same),
-    case(HashMap::<Value, Value>::new(), Value::Map(vec![].into()), "a0", false, same),
-    case(BTreeMap::<Value, Value>::new(), Value::Map(vec![].into()), "a0", false, same),
+    case(HashMap::<Value, Value>::new(), Value::Map(vec![]), "a0", false, same),
+    case(BTreeMap::<Value, Value>::new(), Value::Map(vec![]), "a0", false, same),
     case(map!{1 => 2, 3 => 4}, cbor!({1 => 2, 3 => 4}).unwrap(), "a201020304", false, same),
     case(cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), "a26161016162820203", false, same),
     case(cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), cbor!({"a" => 1, "b" => [2, 3]}).unwrap(), "bf61610161629f0203ffff", true, same),
