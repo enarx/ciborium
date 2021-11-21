@@ -500,7 +500,7 @@ impl From<u128> for Value {
         }
 
         let mut bytes = &value.to_be_bytes()[..];
-        while !bytes.is_empty() && bytes[0] == 0 {
+        while let Some(0) = bytes.get(0) {
             bytes = &bytes[1..];
         }
 
@@ -521,7 +521,7 @@ impl From<i128> for Value {
         };
 
         let mut bytes = &raw.to_be_bytes()[..];
-        while !bytes.is_empty() && bytes[0] == 0 {
+        while let Some(0) = bytes.get(0) {
             bytes = &bytes[1..];
         }
 
