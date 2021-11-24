@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+use std::cmp::Ordering;
 
 macro_rules! implfrom {
     ($( $(#[$($attr:meta)+])? $t:ident)+) => {
@@ -32,6 +33,67 @@ macro_rules! implfrom {
 /// details.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Integer(i128);
+
+impl Integer {
+    /// Returns the canonical length this integer will have when serialized to bytes.
+    /// This is called `canonical` as it is only used for canonically comparing two
+    /// values. It shouldn't be used in any other context.
+    fn canonical_len(&self) -> usize {
+        let x = *&self.0;
+
+        if let Ok(x) = u8::try_from(x) {
+            if x < 24 {
+                1
+            } else {
+                2
+            }
+        } else if let Ok(x) = i8::try_from(x) {
+            if x >= -24i8 {
+                1
+            } else {
+                2
+            }
+        } else if let Ok(_) = u16::try_from(x) {
+            3
+        } else if let Ok(_) = i16::try_from(x) {
+            3
+        } else if let Ok(_) = u32::try_from(x) {
+            5
+        } else if let Ok(_) = i32::try_from(x) {
+            5
+        } else if let Ok(_) = u64::try_from(x) {
+            9
+        } else if let Ok(_) = i64::try_from(x) {
+            9
+        } else {
+            // Ciborium serializes u128/i128 as BigPos if they don't fit in 64 bits.
+            // In this special case we have to calculate the length.
+            // The Tag itself will always be 1 byte.
+            x.to_be_bytes().len() + 1
+        }
+    }
+
+    /// Compare two integers as if we were to serialize them, but more efficiently.
+    pub fn canonical_cmp(&self, other: &Self) -> Ordering {
+        match self.canonical_len().cmp(&other.canonical_len()) {
+            Ordering::Equal => {
+                // Negative numbers are higher in byte-order than positive numbers.
+                match (self.0.is_negative(), other.0.is_negative()) {
+                    (false, true) => {
+                        Ordering::Less
+                    }
+                    (true, false) => {
+                        Ordering::Greater
+                    }
+                    (_, _) => {
+                        self.0.cmp(&other.0)
+                    }
+                }
+            },
+            x => x,
+        }
+    }
+}
 
 implfrom! {
     u8 u16 u32 u64
