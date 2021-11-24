@@ -85,6 +85,15 @@ impl Integer {
                     (true, false) => {
                         Ordering::Greater
                     }
+                    (true, true) => {
+                        // For negative numbers the byte order puts numbers closer to 0 which
+                        // are lexically higher, lower. So -1 < -2 when sorting by be_bytes().
+                        match self.0.cmp(&other.0) {
+                            Ordering::Less => Ordering::Greater,
+                            Ordering::Equal => Ordering::Equal,
+                            Ordering::Greater => Ordering::Less,
+                        }
+                    }
                     (_, _) => {
                         self.0.cmp(&other.0)
                     }

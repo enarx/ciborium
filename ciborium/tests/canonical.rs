@@ -58,3 +58,31 @@ fn map() {
 
     assert_eq!(hex::encode(&bytes1), "a80a002001f402186403617a048120056261610681186407");
 }
+
+#[test]
+fn negative_numbers() {
+    let mut array: Vec<CanonicalValue> = vec![
+        cval!(10),
+        cval!(-1),
+        cval!(-2),
+        cval!(-3),
+        cval!(-4),
+        cval!(false),
+        cval!(100),
+        cval!(-100),
+        cval!(-200),
+        cval!("z"),
+        cval!([-1]),
+        cval!(-300),
+        cval!("aa"),
+        cval!([100]),
+    ];
+    let golden = array.clone();
+
+    // Shuffle the array.
+    array.shuffle(&mut rand::thread_rng());
+
+    array.sort();
+
+    assert_eq!(array, golden);
+}
