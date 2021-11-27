@@ -6,12 +6,12 @@
 //!
 //! # Quick Start
 //!
-//! You're probably looking for [`de::from_reader()`](crate::de::from_reader)
-//! and [`ser::into_writer()`](crate::ser::into_writer), which are
+//! You're probably looking for [`from_reader()`](crate::de::from_reader)
+//! and [`into_writer()`](crate::ser::into_writer), which are
 //! the main functions. Note that byte slices are also readers and writers and can be
 //! passed to these functions just as streams can.
 //!
-//! For dynamic CBOR value creation/inspection, see [`value::Value`](crate::value::Value).
+//! For dynamic CBOR value creation/inspection, see [`Value`](crate::value::Value).
 //!
 //! # Design Decisions
 //!
@@ -96,6 +96,16 @@ pub mod de;
 pub mod ser;
 pub mod tag;
 pub mod value;
+
+// Re-export the [items recommended by serde](https://serde.rs/conventions.html).
+#[doc(inline)]
+pub use crate::de::from_reader;
+
+#[doc(inline)]
+pub use crate::ser::into_writer;
+
+#[doc(inline)]
+pub use crate::value::Value;
 
 /// Build a `Value` conveniently.
 ///
