@@ -11,12 +11,12 @@ Ciborium contains CBOR serialization and deserialization implementations for ser
 
 ## Quick Start
 
-You're probably looking for [`de::from_reader()`](crate::de::from_reader)
-and [`ser::into_writer()`](crate::ser::into_writer), which are
+You're probably looking for [`from_reader()`](crate::de::from_reader)
+and [`into_writer()`](crate::ser::into_writer), which are
 the main functions. Note that byte slices are also readers and writers and can be
 passed to these functions just as streams can.
 
-For dynamic CBOR value creation/inspection, see [`value::Value`](crate::value::Value).
+For dynamic CBOR value creation/inspection, see [`Value`](crate::value::Value).
 
 ## Design Decisions
 
