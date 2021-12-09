@@ -77,6 +77,25 @@ impl Value {
         }
     }
 
+    /// If the `Value` is a `Integer`, returns a the associated `Integer` data as `Ok`.
+    /// Returns `Err(Self)` otherwise.
+    ///
+    /// ```
+    /// # use ciborium::{Value, value::Integer};
+    /// #
+    /// let value = Value::Integer(17.into());
+    /// assert_eq!(value.into_integer(), Ok(Integer::from(17)));
+    ///
+    /// let value = Value::Bool(true);
+    /// assert_eq!(value.into_integer(), Err(Value::Bool(true)));
+    /// ```
+    pub fn into_integer(self) -> Result<Integer, Self> {
+        match self {
+            Value::Integer(int) => Ok(int),
+            other => Err(other),
+        }
+    }
+
     /// Returns true if the `Value` is a `Bytes`. Returns false otherwise.
     ///
     /// ```
@@ -125,6 +144,25 @@ impl Value {
         }
     }
 
+    /// If the `Value` is a `Bytes`, returns a the associated `Vec<u8>` data as `Ok`.
+    /// Returns `Err(Self)` otherwise.
+    ///
+    /// ```
+    /// # use ciborium::Value;
+    /// #
+    /// let value = Value::Bytes(vec![104, 101, 108, 108, 111]);
+    /// assert_eq!(value.into_bytes(), Ok(vec![104, 101, 108, 108, 111]));
+    ///
+    /// let value = Value::Bool(true);
+    /// assert_eq!(value.into_bytes(), Err(Value::Bool(true)));
+    /// ```
+    pub fn into_bytes(self) -> Result<Vec<u8>, Self> {
+        match self {
+            Value::Bytes(vec) => Ok(vec),
+            other => Err(other),
+        }
+    }
+
     /// Returns true if the `Value` is a `Float`. Returns false otherwise.
     ///
     /// ```
@@ -153,6 +191,25 @@ impl Value {
         match *self {
             Value::Float(f) => Some(f),
             _ => None,
+        }
+    }
+
+    /// If the `Value` is a `Float`, returns a the associated `f64` data as `Ok`.
+    /// Returns `Err(Self)` otherwise.
+    ///
+    /// ```
+    /// # use ciborium::Value;
+    /// #
+    /// let value = Value::Float(17.);
+    /// assert_eq!(value.into_float(), Ok(17.));
+    ///
+    /// let value = Value::Bool(true);
+    /// assert_eq!(value.into_float(), Err(Value::Bool(true)));
+    /// ```
+    pub fn into_float(self) -> Result<f64, Self> {
+        match self {
+            Value::Float(f) => Ok(f),
+            other => Err(other),
         }
     }
 
@@ -205,6 +262,25 @@ impl Value {
         }
     }
 
+    /// If the `Value` is a `String`, returns a the associated `String` data as `Ok`.
+    /// Returns `Err(Self)` otherwise.
+    ///
+    /// ```
+    /// # use ciborium::Value;
+    /// #
+    /// let value = Value::Text(String::from("hello"));
+    /// assert_eq!(value.into_text().as_deref(), Ok("hello"));
+    ///
+    /// let value = Value::Bool(true);
+    /// assert_eq!(value.into_text(), Err(Value::Bool(true)));
+    /// ```
+    pub fn into_text(self) -> Result<String, Self> {
+        match self {
+            Value::Text(s) => Ok(s),
+            other => Err(other),
+        }
+    }
+
     /// Returns true if the `Value` is a `Bool`. Returns false otherwise.
     ///
     /// ```
@@ -232,6 +308,25 @@ impl Value {
         match *self {
             Value::Bool(b) => Some(b),
             _ => None,
+        }
+    }
+
+    /// If the `Value` is a `Bool`, returns a the associated `bool` data as `Ok`.
+    /// Returns `Err(Self)` otherwise.
+    ///
+    /// ```
+    /// # use ciborium::Value;
+    /// #
+    /// let value = Value::Bool(false);
+    /// assert_eq!(value.into_bool(), Ok(false));
+    ///
+    /// let value = Value::Float(17.);
+    /// assert_eq!(value.into_bool(), Err(Value::Float(17.)));
+    /// ```
+    pub fn into_bool(self) -> Result<bool, Self> {
+        match self {
+            Value::Bool(b) => Ok(b),
+            other => Err(other),
         }
     }
 
@@ -300,6 +395,25 @@ impl Value {
         }
     }
 
+    /// If the `Value` is a `Tag`, returns a the associated pair of `u64` and `Box<value>` data as `Ok`.
+    /// Returns `Err(Self)` otherwise.
+    ///
+    /// ```
+    /// # use ciborium::Value;
+    /// #
+    /// let value = Value::Tag(7, Box::new(Value::Float(12.)));
+    /// assert_eq!(value.into_tag(), Ok((7, Box::new(Value::Float(12.)))));
+    ///
+    /// let value = Value::Bool(true);
+    /// assert_eq!(value.into_tag(), Err(Value::Bool(true)));
+    /// ```
+    pub fn into_tag(self) -> Result<(u64, Box<Value>), Self> {
+        match self {
+            Value::Tag(tag, value) => Ok((tag, value)),
+            other => Err(other),
+        }
+    }
+
     /// Returns true if the `Value` is an Array. Returns false otherwise.
     ///
     /// ```
@@ -361,6 +475,30 @@ impl Value {
         match *self {
             Value::Array(ref mut list) => Some(list),
             _ => None,
+        }
+    }
+
+    /// If the `Value` is a `Array`, returns a the associated `Vec<Value>` data as `Ok`.
+    /// Returns `Err(Self)` otherwise.
+    ///
+    /// ```
+    /// # use ciborium::{Value, value::Integer};
+    /// #
+    /// let mut value = Value::Array(
+    ///     vec![
+    ///         Value::Integer(17.into()),
+    ///         Value::Float(18.),
+    ///     ]
+    /// );
+    /// assert_eq!(value.into_array(), Ok(vec![Value::Integer(17.into()), Value::Float(18.)]));
+    ///
+    /// let value = Value::Bool(true);
+    /// assert_eq!(value.into_array(), Err(Value::Bool(true)));
+    /// ```
+    pub fn into_array(self) -> Result<Vec<Value>, Self> {
+        match self {
+            Value::Array(vec) => Ok(vec),
+            other => Err(other),
         }
     }
 
@@ -429,6 +567,29 @@ impl Value {
         match *self {
             Value::Map(ref mut map) => Some(map),
             _ => None,
+        }
+    }
+
+    /// If the `Value` is a `Map`, returns a the associated `Vec<(Value, Value)>` data as `Ok`.
+    /// Returns `Err(Self)` otherwise.
+    ///
+    /// ```
+    /// # use ciborium::Value;
+    /// #
+    /// let mut value = Value::Map(
+    ///     vec![
+    ///         (Value::Text(String::from("key")), Value::Float(18.)),
+    ///     ]
+    /// );
+    /// assert_eq!(value.into_map(), Ok(vec![(Value::Text(String::from("key")), Value::Float(18.))]));
+    ///
+    /// let value = Value::Bool(true);
+    /// assert_eq!(value.into_map(), Err(Value::Bool(true)));
+    /// ```
+    pub fn into_map(self) -> Result<Vec<(Value, Value)>, Self> {
+        match self {
+            Value::Map(map) => Ok(map),
+            other => Err(other),
         }
     }
 }
