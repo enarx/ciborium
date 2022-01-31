@@ -2,16 +2,16 @@
 
 //! A dynamic CBOR value
 
-mod integer;
 mod canonical;
+mod integer;
 
 mod de;
 mod error;
 mod ser;
 
+pub use canonical::CanonicalValue;
 pub use error::Error;
 pub use integer::Integer;
-pub use canonical::CanonicalValue;
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 

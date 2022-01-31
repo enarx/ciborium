@@ -49,7 +49,7 @@ pub fn cmp_value(v1: &Value, v2: &Value) -> Ordering {
         (Bool(s), Bool(o)) => s.cmp(o),
         (Null, Null) => Ordering::Equal,
         (Tag(t, v), Tag(ot, ov)) => match Value::from(*t).partial_cmp(&Value::from(*ot)) {
-            Some(Ordering::Equal) | None => match v.partial_cmp(&ov) {
+            Some(Ordering::Equal) | None => match v.partial_cmp(ov) {
                 Some(x) => x,
                 None => serialized_canonical_cmp(v1, v2),
             },
@@ -80,9 +80,9 @@ impl From<Value> for CanonicalValue {
     }
 }
 
-impl Into<Value> for CanonicalValue {
-    fn into(self) -> Value {
-        self.0
+impl From<CanonicalValue> for Value {
+    fn from(v: CanonicalValue) -> Self {
+        v.0
     }
 }
 
