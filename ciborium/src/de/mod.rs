@@ -348,7 +348,7 @@ where
 
                     let mut segments = self.decoder.text(len);
                     while let Some(mut segment) = segments.pull()? {
-                        while let Some(chunk) = segment.pull(&mut self.scratch)? {
+                        while let Some(chunk) = segment.pull(self.scratch)? {
                             buffer.push_str(chunk);
                         }
                     }
@@ -389,7 +389,7 @@ where
 
                     let mut segments = self.decoder.bytes(len);
                     while let Some(mut segment) = segments.pull()? {
-                        while let Some(chunk) = segment.pull(&mut self.scratch)? {
+                        while let Some(chunk) = segment.pull(self.scratch)? {
                             buffer.extend_from_slice(chunk);
                         }
                     }
