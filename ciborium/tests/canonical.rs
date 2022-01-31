@@ -2,10 +2,10 @@
 
 extern crate std;
 
-use std::collections::BTreeMap;
 use ciborium::cbor;
-use ciborium::value::{ CanonicalValue, };
+use ciborium::value::CanonicalValue;
 use rand::prelude::*;
+use std::collections::BTreeMap;
 
 macro_rules! cval {
     ($x:expr) => {
@@ -56,7 +56,10 @@ fn map() {
     let mut bytes1 = Vec::new();
     ciborium::ser::into_writer(&map, &mut bytes1).unwrap();
 
-    assert_eq!(hex::encode(&bytes1), "a80a002001f402186403617a048120056261610681186407");
+    assert_eq!(
+        hex::encode(&bytes1),
+        "a80a002001f402186403617a048120056261610681186407"
+    );
 }
 
 #[test]

@@ -39,7 +39,7 @@ impl Integer {
     /// This is called `canonical` as it is only used for canonically comparing two
     /// values. It shouldn't be used in any other context.
     fn canonical_len(&self) -> usize {
-        let x = *&self.0;
+        let x = self.0;
 
         if let Ok(x) = u8::try_from(x) {
             if x < 24 {
@@ -53,17 +53,11 @@ impl Integer {
             } else {
                 2
             }
-        } else if let Ok(_) = u16::try_from(x) {
+        } else if u16::try_from(x).is_ok() || i16::try_from(x).is_ok() {
             3
-        } else if let Ok(_) = i16::try_from(x) {
-            3
-        } else if let Ok(_) = u32::try_from(x) {
+        } else if u32::try_from(x).is_ok() || i32::try_from(x).is_ok() {
             5
-        } else if let Ok(_) = i32::try_from(x) {
-            5
-        } else if let Ok(_) = u64::try_from(x) {
-            9
-        } else if let Ok(_) = i64::try_from(x) {
+        } else if u64::try_from(x).is_ok() || i64::try_from(x).is_ok() {
             9
         } else {
             // Ciborium serializes u128/i128 as BigPos if they don't fit in 64 bits.
@@ -79,12 +73,8 @@ impl Integer {
             Ordering::Equal => {
                 // Negative numbers are higher in byte-order than positive numbers.
                 match (self.0.is_negative(), other.0.is_negative()) {
-                    (false, true) => {
-                        Ordering::Less
-                    }
-                    (true, false) => {
-                        Ordering::Greater
-                    }
+                    (false, true) => Ordering::Less,
+                    (true, false) => Ordering::Greater,
                     (true, true) => {
                         // For negative numbers the byte order puts numbers closer to 0 which
                         // are lexically higher, lower. So -1 < -2 when sorting by be_bytes().
@@ -94,11 +84,9 @@ impl Integer {
                             Ordering::Greater => Ordering::Less,
                         }
                     }
-                    (_, _) => {
-                        self.0.cmp(&other.0)
-                    }
+                    (_, _) => self.0.cmp(&other.0),
                 }
-            },
+            }
             x => x,
         }
     }
