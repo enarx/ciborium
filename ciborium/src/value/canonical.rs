@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::value::Value;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
 use serde::{de, ser};
-use std::cmp::Ordering;
 
 /// Manually serialize values to compare them.
 fn serialized_canonical_cmp(v1: &Value, v2: &Value) -> Ordering {
