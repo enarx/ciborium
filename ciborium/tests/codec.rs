@@ -397,3 +397,22 @@ enum Enum {
     Tuple(u8, u16),
     Struct { first: u8, second: u16 },
 }
+
+#[rstest(
+    input,
+    case(vec![]),
+    case(vec![0u8, 1, 2, 3]),
+)]
+fn byte_vec_serde_bytes_compatibility(input: Vec<u8>) {
+    use serde_bytes::ByteBuf;
+
+    let mut buf = Vec::new();
+    into_writer(&input, &mut buf).unwrap();
+    let bytes: ByteBuf = from_reader(&buf[..]).unwrap();
+    assert_eq!(input, bytes.to_vec());
+
+    let mut buf = Vec::new();
+    into_writer(&ByteBuf::from(input.clone()), &mut buf).unwrap();
+    let bytes: Vec<u8> = from_reader(&buf[..]).unwrap();
+    assert_eq!(input, bytes);
+}
