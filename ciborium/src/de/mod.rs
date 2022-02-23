@@ -371,6 +371,11 @@ where
                     visitor.visit_bytes(&self.scratch[..len])
                 }
 
+                Header::Array(len) => self.recurse(|me| {
+                    let access = Access(me, len);
+                    visitor.visit_seq(access)
+                }),
+
                 header => Err(header.expected("bytes")),
             };
         }
@@ -397,7 +402,12 @@ where
                     visitor.visit_byte_buf(buffer)
                 }
 
-                header => Err(header.expected("expected byte buffer")),
+                Header::Array(len) => self.recurse(|me| {
+                    let access = Access(me, len);
+                    visitor.visit_seq(access)
+                }),
+
+                header => Err(header.expected("byte buffer")),
             };
         }
     }
@@ -411,6 +421,19 @@ where
                     let access = Access(me, len);
                     visitor.visit_seq(access)
                 }),
+
+                Header::Bytes(len) => {
+                    let mut buffer = Vec::new();
+
+                    let mut segments = self.decoder.bytes(len);
+                    while let Some(mut segment) = segments.pull()? {
+                        while let Some(chunk) = segment.pull(self.scratch)? {
+                            buffer.extend_from_slice(chunk);
+                        }
+                    }
+
+                    visitor.visit_seq(BytesAccess::<R>(0, buffer, core::marker::PhantomData))
+                }
 
                 header => Err(header.expected("array")),
             };
@@ -680,6 +703,36 @@ where
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
         self.0.deserialize_any(visitor)
+    }
+}
+
+struct BytesAccess<R: Read>(usize, Vec<u8>, core::marker::PhantomData<R>);
+
+impl<'de, R: Read> de::SeqAccess<'de> for BytesAccess<R>
+where
+    R::Error: core::fmt::Debug,
+{
+    type Error = Error<R::Error>;
+
+    #[inline]
+    fn next_element_seed<U: de::DeserializeSeed<'de>>(
+        &mut self,
+        seed: U,
+    ) -> Result<Option<U::Value>, Self::Error> {
+        use de::IntoDeserializer;
+
+        if self.0 < self.1.len() {
+            let byte = self.1[self.0];
+            self.0 += 1;
+            seed.deserialize(byte.into_deserializer()).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Option<usize> {
+        Some(self.1.len() - self.0)
     }
 }
 
