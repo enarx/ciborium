@@ -22,3 +22,6 @@ is-it-maintained-open-issues = { repository = "enarx/ciborium" }
 [features]
 alloc = []
 std = ["alloc"]
+
+[package.metadata.docs.rs]
+all-features = true

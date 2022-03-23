@@ -29,3 +29,6 @@ hex = "0.4"
 [features]
 alloc = []
 std = ["alloc"]
+
+[package.metadata.docs.rs]
+all-features = true
