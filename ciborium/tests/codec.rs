@@ -10,7 +10,7 @@ use ciborium::value::Value;
 use ciborium::{cbor, de::from_reader, ser::into_writer};
 
 use rstest::rstest;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 macro_rules! val {
     ($x:expr) => {
@@ -275,7 +275,7 @@ macro_rules! map {
     case(Enum::Tuple(56, 67), cbor!({"Tuple" => [56, 67]}).unwrap(), "a1655475706c658218381843", false, same), // Not In RFC
     case(Enum::Struct { first: 78, second: 89 }, cbor!({ "Struct" => { "first" => 78, "second" => 89 }}).unwrap(), "a166537472756374a2656669727374184e667365636f6e641859", false, same), // Not In RFC
 )]
-fn codec<'de, T: Serialize + Clone, V: Debug + PartialEq + Deserialize<'de>, F: Fn(T) -> V>(
+fn codec<'de, T: Serialize + Clone, V: Debug + PartialEq + DeserializeOwned, F: Fn(T) -> V>(
     input: T,
     value: Value,
     bytes: &str,

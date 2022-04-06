@@ -4,7 +4,7 @@ extern crate alloc;
 
 use ciborium::{de::from_reader, ser::into_writer, tag::*, value::Value};
 use rstest::rstest;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 use core::fmt::Debug;
 
@@ -20,7 +20,7 @@ use core::fmt::Debug;
     case(Accepted::<_, 6>(true), "c7f5", Value::Tag(7, Value::Bool(true).into()), false, false),
     case(Accepted::<_, 6>(true), "f5", Value::Bool(true), false, true),
 )]
-fn test<'de, T: Serialize + Deserialize<'de> + Debug + Eq>(
+fn test<T: Serialize + DeserializeOwned + Debug + Eq>(
     item: T,
     bytes: &str,
     value: Value,
