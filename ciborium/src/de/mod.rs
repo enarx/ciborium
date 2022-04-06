@@ -799,7 +799,7 @@ where
 
 /// Deserializes as CBOR from a type with [`impl ciborium_io::Read`](ciborium_io::Read)
 #[inline]
-pub fn from_reader<'de, T: de::Deserialize<'de>, R: Read>(reader: R) -> Result<T, Error<R::Error>>
+pub fn from_reader<T: de::DeserializeOwned, R: Read>(reader: R) -> Result<T, Error<R::Error>>
 where
     R::Error: core::fmt::Debug,
 {
