@@ -495,6 +495,5 @@ where
     W::Error: core::fmt::Debug,
 {
     let mut encoder = Serializer::from(writer);
-    value.serialize(&mut encoder)?;
-    Ok(encoder.0.flush()?)
+    value.serialize(&mut encoder)
 }
