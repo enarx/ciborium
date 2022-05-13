@@ -68,7 +68,7 @@ impl<W: Write> Encoder<W> {
         value: &[u8],
         segment: impl Into<Option<usize>>,
     ) -> Result<(), W::Error> {
-        let max = segment.into().unwrap_or_else(|| value.len());
+        let max = segment.into().unwrap_or(value.len());
         let max = core::cmp::max(max, 1);
 
         if max >= value.len() {
@@ -97,7 +97,7 @@ impl<W: Write> Encoder<W> {
     /// should not be relied upon.
     #[inline]
     pub fn text(&mut self, value: &str, segment: impl Into<Option<usize>>) -> Result<(), W::Error> {
-        let max = segment.into().unwrap_or_else(|| value.len());
+        let max = segment.into().unwrap_or(value.len());
         let max = core::cmp::max(max, 4);
 
         if max >= value.len() {
