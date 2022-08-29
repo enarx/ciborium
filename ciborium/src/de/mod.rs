@@ -566,6 +566,7 @@ where
             match self.decoder.pull()? {
                 Header::Tag(..) => continue,
                 Header::Map(Some(1)) => (),
+                Header::Map(None) => (),
                 header @ Header::Text(..) => self.decoder.push(header),
                 header => return Err(header.expected("enum")),
             }
