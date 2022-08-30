@@ -5,11 +5,13 @@ extern crate std;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::fmt::Debug;
+use std::io::Cursor;
 
 use ciborium::value::Value;
 use ciborium::{cbor, de::from_reader, ser::into_writer};
 
 use rstest::rstest;
+use serde::de::Visitor;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 macro_rules! val {
@@ -415,4 +417,113 @@ fn byte_vec_serde_bytes_compatibility(input: Vec<u8>) {
     into_writer(&ByteBuf::from(input.clone()), &mut buf).unwrap();
     let bytes: Vec<u8> = from_reader(&buf[..]).unwrap();
     assert_eq!(input, bytes);
+}
+
+// Regression test for #32 where strings and bytes longer than 4096 bytes previously failed to
+// roundtrip if `deserialize_str` and `deserialize_bytes` (and not their owned equivalents) are used
+// in the deserializers.
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LongString {
+    s: String,
+}
+
+impl Serialize for LongString {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.s.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for LongString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(LongStringVisitor)
+    }
+}
+
+struct LongStringVisitor;
+
+impl<'de> Visitor<'de> for LongStringVisitor {
+    type Value = LongString;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(LongString { s: v.to_owned() })
+    }
+}
+
+#[test]
+fn long_string_roundtrips() {
+    let s = String::from_utf8(vec![b'A'; 5000]).unwrap();
+    let long_string = LongString { s };
+
+    let mut buf = vec![];
+    into_writer(&long_string, Cursor::new(&mut buf)).unwrap();
+    let long_string_de = from_reader(Cursor::new(&buf)).unwrap();
+
+    assert_eq!(long_string, long_string_de);
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LongBytes {
+    v: Vec<u8>,
+}
+
+impl Serialize for LongBytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_bytes(self.v.as_slice())
+    }
+}
+
+impl<'de> Deserialize<'de> for LongBytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_bytes(LongBytesVisitor)
+    }
+}
+
+struct LongBytesVisitor;
+
+impl<'de> Visitor<'de> for LongBytesVisitor {
+    type Value = LongBytes;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "bytes")
+    }
+
+    fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(LongBytes { v: v.to_vec() })
+    }
+}
+
+#[test]
+fn long_bytes_roundtrips() {
+    let long_bytes = LongBytes {
+        v: vec![b'A'; 5000],
+    };
+
+    let mut buf = vec![];
+    into_writer(&long_bytes, Cursor::new(&mut buf)).unwrap();
+    let long_bytes_de = from_reader(Cursor::new(&buf)).unwrap();
+
+    assert_eq!(long_bytes, long_bytes_de);
 }
