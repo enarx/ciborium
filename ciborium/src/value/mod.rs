@@ -452,7 +452,7 @@ impl Value {
     /// ```
     pub fn as_array(&self) -> Option<&Vec<Value>> {
         match *self {
-            Value::Array(ref array) => Some(&*array),
+            Value::Array(ref array) => Some(array),
             _ => None,
         }
     }
@@ -646,7 +646,7 @@ impl From<u128> for Value {
         }
 
         let mut bytes = &value.to_be_bytes()[..];
-        while let Some(0) = bytes.get(0) {
+        while let Some(0) = bytes.first() {
             bytes = &bytes[1..];
         }
 
@@ -667,7 +667,7 @@ impl From<i128> for Value {
         };
 
         let mut bytes = &raw.to_be_bytes()[..];
-        while let Some(0) = bytes.get(0) {
+        while let Some(0) = bytes.first() {
             bytes = &bytes[1..];
         }
 

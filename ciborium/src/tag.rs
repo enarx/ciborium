@@ -426,7 +426,7 @@ impl ser::Serializer for Serializer {
     }
 }
 
-impl<'a> ser::SerializeSeq for Serializer {
+impl ser::SerializeSeq for Serializer {
     type Ok = u64;
     type Error = Error;
 
@@ -441,7 +441,7 @@ impl<'a> ser::SerializeSeq for Serializer {
     }
 }
 
-impl<'a> ser::SerializeTuple for Serializer {
+impl ser::SerializeTuple for Serializer {
     type Ok = u64;
     type Error = Error;
 
@@ -456,7 +456,7 @@ impl<'a> ser::SerializeTuple for Serializer {
     }
 }
 
-impl<'a> ser::SerializeTupleStruct for Serializer {
+impl ser::SerializeTupleStruct for Serializer {
     type Ok = u64;
     type Error = Error;
 
@@ -471,7 +471,7 @@ impl<'a> ser::SerializeTupleStruct for Serializer {
     }
 }
 
-impl<'a> ser::SerializeTupleVariant for Serializer {
+impl ser::SerializeTupleVariant for Serializer {
     type Ok = u64;
     type Error = Error;
 
@@ -486,7 +486,7 @@ impl<'a> ser::SerializeTupleVariant for Serializer {
     }
 }
 
-impl<'a> ser::SerializeMap for Serializer {
+impl ser::SerializeMap for Serializer {
     type Ok = u64;
     type Error = Error;
 
@@ -506,7 +506,7 @@ impl<'a> ser::SerializeMap for Serializer {
     }
 }
 
-impl<'a> ser::SerializeStruct for Serializer {
+impl ser::SerializeStruct for Serializer {
     type Ok = u64;
     type Error = Error;
 
@@ -525,7 +525,7 @@ impl<'a> ser::SerializeStruct for Serializer {
     }
 }
 
-impl<'a> ser::SerializeStructVariant for Serializer {
+impl ser::SerializeStructVariant for Serializer {
     type Ok = u64;
     type Error = Error;
 
