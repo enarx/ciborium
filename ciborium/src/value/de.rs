@@ -173,7 +173,7 @@ impl<'de> de::Deserialize<'de> for Value {
 
 struct Deserializer<T>(T);
 
-impl<'a, 'de> Deserializer<&'a Value> {
+impl<'a> Deserializer<&'a Value> {
     fn integer<N>(&self, kind: &'static str) -> Result<N, Error>
     where
         N: TryFrom<u128>,
@@ -233,7 +233,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
             Value::Null => visitor.visit_none(),
 
             Value::Tag(t, v) => {
-                let parent: Deserializer<&Value> = Deserializer(&*v);
+                let parent: Deserializer<&Value> = Deserializer(v);
                 let access = crate::tag::TagAccess::new(parent, Some(*t));
                 visitor.visit_enum(access)
             }
@@ -487,7 +487,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
                 v => (None, v),
             };
 
-            let parent: Deserializer<&Value> = Deserializer(&*val);
+            let parent: Deserializer<&Value> = Deserializer(val);
             let access = crate::tag::TagAccess::new(parent, tag);
             return visitor.visit_enum(access);
         }

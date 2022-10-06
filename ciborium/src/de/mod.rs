@@ -51,7 +51,7 @@ struct Deserializer<'b, R: Read> {
     recurse: usize,
 }
 
-impl<'de, 'a, 'b, R: Read> Deserializer<'b, R>
+impl<'a, R: Read> Deserializer<'a, R>
 where
     R::Error: core::fmt::Debug,
 {
