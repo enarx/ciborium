@@ -1,1 +1,4 @@
-*       @enarx/reviews
+# Each line is a file pattern followed by one or more owners.
+# Owners will be automatically notified about new PRs and
+# an owner's approval is required to merge to protected branches.
+*       @enarx/codeowners
