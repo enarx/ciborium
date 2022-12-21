@@ -136,7 +136,7 @@ impl Write for &mut [u8] {
             return Err(OutOfSpace(()));
         }
 
-        let (prefix, suffix) = core::mem::replace(self, &mut []).split_at_mut(data.len());
+        let (prefix, suffix) = core::mem::take(self).split_at_mut(data.len());
         prefix.copy_from_slice(data);
         *self = suffix;
         Ok(())
