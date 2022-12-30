@@ -12,19 +12,38 @@ use ciborium_io::Write;
 use ciborium_ll::*;
 use serde::{ser, Serialize as _};
 
-struct Serializer<W: Write>(Encoder<W>);
+struct Serializer<W: Write> {
+    writer: Encoder<W>,
+    serialize_null_as_undefined: bool,
+}
+
+impl<W> Serializer<W>
+where
+    W: Write,
+{
+    pub fn serialize_null_as_undefined(mut self: Self, null_as_undefined: bool) -> Self {
+        self.serialize_null_as_undefined = null_as_undefined;
+        self
+    }
+}
 
 impl<W: Write> From<W> for Serializer<W> {
     #[inline]
     fn from(writer: W) -> Self {
-        Self(writer.into())
+        Self {
+            writer: writer.into(),
+            serialize_null_as_undefined: false,
+        }
     }
 }
 
 impl<W: Write> From<Encoder<W>> for Serializer<W> {
     #[inline]
     fn from(writer: Encoder<W>) -> Self {
-        Self(writer)
+        Self {
+            writer,
+            serialize_null_as_undefined: false,
+        }
     }
 }
 
@@ -45,7 +64,7 @@ where
 
     #[inline]
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
-        Ok(self.0.push(match v {
+        Ok(self.writer.push(match v {
             false => Header::Simple(simple::FALSE),
             true => Header::Simple(simple::TRUE),
         })?)
@@ -68,7 +87,7 @@ where
 
     #[inline]
     fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
-        Ok(self.0.push(match v.is_negative() {
+        Ok(self.writer.push(match v.is_negative() {
             false => Header::Positive(v as u64),
             true => Header::Negative(v as u64 ^ !0),
         })?)
@@ -82,8 +101,8 @@ where
         };
 
         match (tag, u64::try_from(raw)) {
-            (tag::BIGPOS, Ok(x)) => return Ok(self.0.push(Header::Positive(x))?),
-            (tag::BIGNEG, Ok(x)) => return Ok(self.0.push(Header::Negative(x))?),
+            (tag::BIGPOS, Ok(x)) => return Ok(self.writer.push(Header::Positive(x))?),
+            (tag::BIGNEG, Ok(x)) => return Ok(self.writer.push(Header::Negative(x))?),
             _ => {}
         }
 
@@ -95,9 +114,9 @@ where
             slice = &slice[1..];
         }
 
-        self.0.push(Header::Tag(tag))?;
-        self.0.push(Header::Bytes(Some(slice.len())))?;
-        Ok(self.0.write_all(slice)?)
+        self.writer.push(Header::Tag(tag))?;
+        self.writer.push(Header::Bytes(Some(slice.len())))?;
+        Ok(self.writer.write_all(slice)?)
     }
 
     #[inline]
@@ -117,7 +136,7 @@ where
 
     #[inline]
     fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
-        Ok(self.0.push(Header::Positive(v))?)
+        Ok(self.writer.push(Header::Positive(v))?)
     }
 
     #[inline]
@@ -134,9 +153,9 @@ where
             slice = &slice[1..];
         }
 
-        self.0.push(Header::Tag(tag::BIGPOS))?;
-        self.0.push(Header::Bytes(Some(slice.len())))?;
-        Ok(self.0.write_all(slice)?)
+        self.writer.push(Header::Tag(tag::BIGPOS))?;
+        self.writer.push(Header::Bytes(Some(slice.len())))?;
+        Ok(self.writer.write_all(slice)?)
     }
 
     #[inline]
@@ -146,7 +165,7 @@ where
 
     #[inline]
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-        Ok(self.0.push(Header::Float(v))?)
+        Ok(self.writer.push(Header::Float(v))?)
     }
 
     #[inline]
@@ -157,19 +176,23 @@ where
     #[inline]
     fn serialize_str(self, v: &str) -> Result<(), Self::Error> {
         let bytes = v.as_bytes();
-        self.0.push(Header::Text(bytes.len().into()))?;
-        Ok(self.0.write_all(bytes)?)
+        self.writer.push(Header::Text(bytes.len().into()))?;
+        Ok(self.writer.write_all(bytes)?)
     }
 
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result<(), Self::Error> {
-        self.0.push(Header::Bytes(v.len().into()))?;
-        Ok(self.0.write_all(v)?)
+        self.writer.push(Header::Bytes(v.len().into()))?;
+        Ok(self.writer.write_all(v)?)
     }
 
     #[inline]
     fn serialize_none(self) -> Result<(), Self::Error> {
-        Ok(self.0.push(Header::Simple(simple::NULL))?)
+        if self.serialize_null_as_undefined {
+            Ok(self.writer.push(Header::Simple(simple::UNDEFINED))?)
+        } else {
+            Ok(self.writer.push(Header::Simple(simple::NULL))?)
+        }
     }
 
     #[inline]
@@ -215,7 +238,7 @@ where
         value: &U,
     ) -> Result<(), Self::Error> {
         if name != "@@TAG@@" || variant != "@@UNTAGGED@@" {
-            self.0.push(Header::Map(Some(1)))?;
+            self.writer.push(Header::Map(Some(1)))?;
             self.serialize_str(variant)?;
         }
 
@@ -224,7 +247,7 @@ where
 
     #[inline]
     fn serialize_seq(self, length: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        self.0.push(Header::Array(length))?;
+        self.writer.push(Header::Array(length))?;
         Ok(CollectionSerializer {
             encoder: self,
             ending: length.is_none(),
@@ -262,9 +285,9 @@ where
             }),
 
             _ => {
-                self.0.push(Header::Map(Some(1)))?;
+                self.writer.push(Header::Map(Some(1)))?;
                 self.serialize_str(variant)?;
-                self.0.push(Header::Array(Some(length)))?;
+                self.writer.push(Header::Array(Some(length)))?;
                 Ok(CollectionSerializer {
                     encoder: self,
                     ending: false,
@@ -276,7 +299,7 @@ where
 
     #[inline]
     fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        self.0.push(Header::Map(length))?;
+        self.writer.push(Header::Map(length))?;
         Ok(CollectionSerializer {
             encoder: self,
             ending: length.is_none(),
@@ -290,7 +313,7 @@ where
         _name: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        self.0.push(Header::Map(Some(length)))?;
+        self.writer.push(Header::Map(Some(length)))?;
         Ok(CollectionSerializer {
             encoder: self,
             ending: false,
@@ -306,9 +329,9 @@ where
         variant: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        self.0.push(Header::Map(Some(1)))?;
+        self.writer.push(Header::Map(Some(1)))?;
         self.serialize_str(variant)?;
-        self.0.push(Header::Map(Some(length)))?;
+        self.writer.push(Header::Map(Some(length)))?;
         Ok(CollectionSerializer {
             encoder: self,
             ending: false,
@@ -327,7 +350,7 @@ macro_rules! end {
         #[inline]
         fn end(self) -> Result<(), Self::Error> {
             if self.ending {
-                self.encoder.0.push(Header::Break)?;
+                self.encoder.writer.push(Header::Break)?;
             }
 
             Ok(())
@@ -413,7 +436,7 @@ where
 
         self.tag = false;
         match value.serialize(crate::tag::Serializer) {
-            Ok(x) => Ok(self.encoder.0.push(Header::Tag(x))?),
+            Ok(x) => Ok(self.encoder.writer.push(Header::Tag(x))?),
             _ => Err(Error::Value("expected tag".into())),
         }
     }
@@ -496,4 +519,32 @@ where
 {
     let mut encoder = Serializer::from(writer);
     value.serialize(&mut encoder)
+}
+
+/// Provides options for serialization
+#[derive(Default)]
+pub struct SerializerOptions {
+    serialize_null_as_undefined: bool,
+}
+
+impl SerializerOptions {
+    /// When serializing to CBOR uses `Undefined` header instead of `Null`
+    pub fn serialize_null_as_undefined(mut self, null_as_undefined: bool) -> Self {
+        self.serialize_null_as_undefined = null_as_undefined;
+        self
+    }
+
+    /// Serializes as CBOR into a type with [`impl ciborium_io::Write`](ciborium_io::Write)
+    pub fn into_writer<T: ?Sized + ser::Serialize, W: Write>(
+        self,
+        value: &T,
+        writer: W,
+    ) -> Result<(), Error<W::Error>>
+    where
+        W::Error: core::fmt::Debug,
+    {
+        let mut encoder =
+            Serializer::from(writer).serialize_null_as_undefined(self.serialize_null_as_undefined);
+        value.serialize(&mut encoder)
+    }
 }
