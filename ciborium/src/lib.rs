@@ -100,6 +100,8 @@ pub mod value;
 // Re-export the [items recommended by serde](https://serde.rs/conventions.html).
 #[doc(inline)]
 pub use crate::de::from_reader;
+#[doc(inline)]
+pub use crate::de::from_reader_with_buffer;
 
 #[doc(inline)]
 pub use crate::ser::into_writer;
