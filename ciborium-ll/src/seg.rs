@@ -78,7 +78,10 @@ impl Parser for Text {
         bytes[..self.stored].clone_from_slice(&self.buffer[..self.stored]);
 
         Ok(match core::str::from_utf8(bytes) {
-            Ok(s) => s,
+            Ok(s) => {
+                self.stored = 0;
+                s
+            },
             Err(e) => {
                 let valid_len = e.valid_up_to();
                 let invalid_len = bytes.len() - valid_len;
