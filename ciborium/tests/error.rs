@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use ciborium::{de::from_reader, de::Error, value::Value};
+use ciborium::{
+    de::{from_reader, Error},
+    ser::into_writer,
+    value::Value,
+};
 use rstest::rstest;
 
 #[rstest(bytes, error,
@@ -44,4 +48,15 @@ fn test(bytes: &str, error: Error<std::io::Error>) {
     };
 
     assert_eq!(correct, actual);
+}
+
+#[test]
+fn test_long_utf8_deserialization() {
+    let s = (0..2000).fold(String::new(), |mut s, _| {
+        s.push_str("ボ");
+        s
+    });
+    let mut v = Vec::new();
+    into_writer(&s, &mut v).unwrap();
+    let _: String = from_reader(&*v).unwrap();
 }
