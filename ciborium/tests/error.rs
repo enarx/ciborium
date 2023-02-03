@@ -52,10 +52,7 @@ fn test(bytes: &str, error: Error<std::io::Error>) {
 
 #[test]
 fn test_long_utf8_deserialization() {
-    let s = (0..2000).fold(String::new(), |mut s, _| {
-        s.push_str("ボ");
-        s
-    });
+    let s = (0..2000).map(|_| 'ボ').collect::<String>();
     let mut v = Vec::new();
     into_writer(&s, &mut v).unwrap();
     let _: String = from_reader(&*v).unwrap();
