@@ -333,6 +333,12 @@ where
                     }
                 }
 
+                // Longer strings require alloaction; delegate to `deserialize_string`
+                item @ Header::Text(_) => {
+                    self.decoder.push(item);
+                    self.deserialize_string(visitor)
+                }
+
                 header => Err(header.expected("str")),
             };
         }
@@ -369,6 +375,12 @@ where
                 Header::Bytes(Some(len)) if len <= self.scratch.len() => {
                     self.decoder.read_exact(&mut self.scratch[..len])?;
                     visitor.visit_bytes(&self.scratch[..len])
+                }
+
+                // Longer byte sequences require alloaction; delegate to `deserialize_byte_buf`
+                item @ Header::Bytes(_) => {
+                    self.decoder.push(item);
+                    self.deserialize_byte_buf(visitor)
                 }
 
                 Header::Array(len) => self.recurse(|me| {
