@@ -416,3 +416,18 @@ fn byte_vec_serde_bytes_compatibility(input: Vec<u8>) {
     let bytes: Vec<u8> = from_reader(&buf[..]).unwrap();
     assert_eq!(input, bytes);
 }
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+struct Foo {
+    bar: u8,
+}
+
+#[rstest(input, expected,
+    case("a163626172182a", Foo { bar: 42 }),
+    case("a143626172182a", Foo { bar: 42 }),
+)]
+fn handle_struct_field_names(input: &str, expected: Foo) {
+    let buf = hex::decode(input).unwrap();
+    let read = from_reader(&buf[..]).unwrap();
+    assert_eq!(expected, read);
+}

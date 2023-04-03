@@ -485,7 +485,28 @@ where
         self,
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        self.deserialize_str(visitor)
+        loop {
+            let offset = self.decoder.offset();
+
+            return match self.decoder.pull()? {
+                Header::Tag(..) => continue,
+
+                Header::Text(Some(len)) if len <= self.scratch.len() => {
+                    self.decoder.read_exact(&mut self.scratch[..len])?;
+
+                    match core::str::from_utf8(&self.scratch[..len]) {
+                        Ok(s) => visitor.visit_str(s),
+                        Err(..) => Err(Error::Syntax(offset)),
+                    }
+                }
+                Header::Bytes(Some(len)) if len <= self.scratch.len() => {
+                    self.decoder.read_exact(&mut self.scratch[..len])?;
+                    visitor.visit_bytes(&self.scratch[..len])
+                }
+
+                header => Err(header.expected("str or bytes")),
+            };
+        }
     }
 
     fn deserialize_ignored_any<V: de::Visitor<'de>>(
