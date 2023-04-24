@@ -518,16 +518,13 @@ where
 
     #[inline]
     fn deserialize_option<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        loop {
-            return match self.decoder.pull()? {
-                Header::Simple(simple::UNDEFINED) => visitor.visit_none(),
-                Header::Simple(simple::NULL) => visitor.visit_none(),
-                Header::Tag(..) => continue,
-                header => {
-                    self.decoder.push(header);
-                    visitor.visit_some(self)
-                }
-            };
+        match self.decoder.pull()? {
+            Header::Simple(simple::UNDEFINED) => visitor.visit_none(),
+            Header::Simple(simple::NULL) => visitor.visit_none(),
+            header => {
+                self.decoder.push(header);
+                visitor.visit_some(self)
+            }
         }
     }
 
