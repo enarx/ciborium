@@ -3,6 +3,7 @@
 extern crate std;
 
 use ciborium::cbor;
+use ciborium::tag::Required;
 use ciborium::value::CanonicalValue;
 use rand::prelude::*;
 use std::collections::BTreeMap;
@@ -88,4 +89,23 @@ fn negative_numbers() {
     array.sort();
 
     assert_eq!(array, golden);
+}
+
+#[test]
+fn tagged_option() {
+    let mut opt = Some(Required::<u64, 0xff>(2u32.into()));
+
+    let mut bytes = Vec::new();
+    ciborium::ser::into_writer(&opt, &mut bytes).unwrap();
+
+    let output = ciborium::de::from_reader(&bytes[..]).unwrap();
+    assert_eq!(opt, output);
+
+    opt = None;
+
+    let mut bytes = Vec::new();
+    ciborium::ser::into_writer(&opt, &mut bytes).unwrap();
+
+    let output = ciborium::de::from_reader(&bytes[..]).unwrap();
+    assert_eq!(opt, output);
 }
