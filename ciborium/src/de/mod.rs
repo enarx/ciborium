@@ -136,15 +136,25 @@ where
                 Err(..) => self.deserialize_i128(visitor),
             },
 
-            Header::Bytes(len) => match len {
-                Some(len) if len <= self.scratch.len() => self.deserialize_bytes(visitor),
-                _ => self.deserialize_byte_buf(visitor),
-            },
+            Header::Bytes(len) => {
+                #[cfg(not(feature = "alloc"))]
+                match len {
+                    Some(len) if len <= self.scratch.len() => self.deserialize_bytes(visitor),
+                    _ => self.deserialize_byte_buf(visitor),
+                }
+                #[cfg(feature = "alloc")]
+                self.deserialize_byte_buf(visitor)
+            }
 
-            Header::Text(len) => match len {
-                Some(len) if len <= self.scratch.len() => self.deserialize_str(visitor),
-                _ => self.deserialize_string(visitor),
-            },
+            Header::Text(len) => {
+                #[cfg(not(feature = "alloc"))]
+                match len {
+                    Some(len) if len <= self.scratch.len() => self.deserialize_str(visitor),
+                    _ => self.deserialize_string(visitor),
+                }
+                #[cfg(feature = "alloc")]
+                self.deserialize_string(visitor)
+            }
 
             Header::Array(..) => self.deserialize_seq(visitor),
             Header::Map(..) => self.deserialize_map(visitor),
@@ -324,7 +334,12 @@ where
             return match self.decoder.pull()? {
                 Header::Tag(..) => continue,
 
-                Header::Text(Some(len)) if len <= self.scratch.len() => {
+                Header::Text(Some(len)) => {
+                    #[cfg(not(feature = "alloc"))]
+                    if len > self.scratch.len() {
+                        return Err(Error::Syntax(offset));
+                    }
+
                     self.decoder.read_exact(&mut self.scratch[..len])?;
 
                     match core::str::from_utf8(&self.scratch[..len]) {
@@ -363,10 +378,17 @@ where
 
     fn deserialize_bytes<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
+            let offset = self.decoder.offset();
+
             return match self.decoder.pull()? {
                 Header::Tag(..) => continue,
 
-                Header::Bytes(Some(len)) if len <= self.scratch.len() => {
+                Header::Bytes(Some(len)) => {
+                    #[cfg(not(feature = "alloc"))]
+                    if len > self.scratch.len() {
+                        return Err(Error::Syntax(offset));
+                    }
+
                     self.decoder.read_exact(&mut self.scratch[..len])?;
                     visitor.visit_bytes(&self.scratch[..len])
                 }
@@ -821,11 +843,33 @@ pub fn from_reader<T: de::DeserializeOwned, R: Read>(reader: R) -> Result<T, Err
 where
     R::Error: core::fmt::Debug,
 {
+    #[cfg(not(feature = "alloc"))]
     let mut scratch = [0; 4096];
+    #[cfg(feature = "alloc")]
+    let mut scratch = Vec::new();
 
     let mut reader = Deserializer {
         decoder: reader.into(),
         scratch: &mut scratch,
+        recurse: 256,
+    };
+
+    T::deserialize(&mut reader)
+}
+
+/// Deserializes as CBOR from a type with [`impl ciborium_io::Read`](ciborium_io::Read) and a buffer as `&mut [u8]`
+#[cfg(not(feature = "alloc"))]
+#[inline]
+pub fn from_reader_with_buffer<'de, T: de::Deserialize<'de>, R: Read>(
+    reader: R,
+    buf: &mut [u8],
+) -> Result<T, Error<R::Error>>
+where
+    R::Error: core::fmt::Debug,
+{
+    let mut reader = Deserializer {
+        decoder: reader.into(),
+        scratch: buf,
         recurse: 256,
     };
 
