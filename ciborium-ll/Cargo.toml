@@ -1,6 +1,6 @@
 [package]
 name = "ciborium-ll"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Nathaniel McCallum <npmccallum@profian.com>"]
 license = "Apache-2.0"
 edition = "2021"
@@ -21,7 +21,7 @@ is-it-maintained-issue-resolution = { repository = "enarx/ciborium" }
 is-it-maintained-open-issues = { repository = "enarx/ciborium" }
 
 [dependencies]
-ciborium-io = { path = "../ciborium-io", version = "0.2.0" }
+ciborium-io = { path = "../ciborium-io", version = "0.2.1" }
 half = "1.6"
 
 [dev-dependencies]
