@@ -499,6 +499,10 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
             _ => Err(de::Error::invalid_type(self.0.into(), &"map")),
         }
     }
+
+    fn is_human_readable(&self) -> bool {
+        false
+    }
 }
 
 impl<'a, 'de, T: Iterator<Item = &'a Value>> de::SeqAccess<'de> for Deserializer<T> {
