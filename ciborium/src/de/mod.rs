@@ -831,3 +831,27 @@ where
 
     T::deserialize(&mut reader)
 }
+
+/// Deserializes as CBOR from a type with [`impl ciborium_io::Read`](ciborium_io::Read), with
+/// a specified maximum recursion limit.  Inputs that are nested beyond the specified limit
+/// will result in [`Error::RecursionLimitExceeded`] .
+///
+/// Set a high recursion limit at your own risk (of stack exhaustion)!
+#[inline]
+pub fn from_reader_with_recursion_limit<T: de::DeserializeOwned, R: Read>(
+    reader: R,
+    recurse_limit: usize,
+) -> Result<T, Error<R::Error>>
+where
+    R::Error: core::fmt::Debug,
+{
+    let mut scratch = [0; 4096];
+
+    let mut reader = Deserializer {
+        decoder: reader.into(),
+        scratch: &mut scratch,
+        recurse: recurse_limit,
+    };
+
+    T::deserialize(&mut reader)
+}
