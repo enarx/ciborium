@@ -29,7 +29,7 @@ hex = "0.4"
 
 [features]
 alloc = []
-std = ["alloc"]
+std = ["alloc", "ciborium-io/std"]
 
 [package.metadata.docs.rs]
 all-features = true
