@@ -7,7 +7,7 @@ use ciborium_io::Read;
 pub enum Error<T> {
     /// An error occurred while reading bytes
     ///
-    /// Contains the underlying error reaturned while reading.
+    /// Contains the underlying error returned while reading.
     Io(T),
 
     /// An error occurred while parsing bytes
