@@ -22,14 +22,14 @@ is-it-maintained-open-issues = { repository = "enarx/ciborium" }
 
 [dependencies]
 ciborium-io = { path = "../ciborium-io", version = "0.2.1" }
-half = "1.6"
+half = { version = "2.2", default-features = false}
 
 [dev-dependencies]
 hex = "0.4"
 
 [features]
 alloc = []
-std = ["alloc"]
+std = ["alloc", "half/std"]
 
 [package.metadata.docs.rs]
 all-features = true
