@@ -436,3 +436,43 @@ fn handle_struct_field_names(input: &str, expected: Foo) {
     let read = from_reader(&buf[..]).unwrap();
     assert_eq!(expected, read);
 }
+
+#[test]
+fn deserialize_bytes_greater_than_4k() {
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct Wrap(Vec<u8>);
+
+    impl Serialize for Wrap {
+        fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            s.serialize_bytes(&self.0[..])
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Wrap {
+        fn deserialize<D: ::serde::Deserializer<'de>>(d: D) -> Result<Wrap, D::Error> {
+            d.deserialize_bytes(WrapVisitor {})
+        }
+    }
+
+    pub struct WrapVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for WrapVisitor {
+        type Value = Wrap;
+
+        fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+            formatter.write_str("oh no!")
+        }
+
+        fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+            Ok(Wrap(v.to_vec()))
+        }
+    }
+
+    let a = Wrap(vec![0u8; 5000]);
+
+    let mut bytes = vec![];
+    ciborium::ser::into_writer(&a, &mut bytes).unwrap();
+
+    let b: Wrap = ciborium::from_reader(&bytes[..]).unwrap();
+    assert_eq!(a, b);
+}
