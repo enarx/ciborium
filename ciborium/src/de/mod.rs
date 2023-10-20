@@ -366,9 +366,13 @@ where
             return match self.decoder.pull()? {
                 Header::Tag(..) => continue,
 
-                Header::Bytes(Some(len)) if len <= self.scratch.len() => {
-                    self.decoder.read_exact(&mut self.scratch[..len])?;
-                    visitor.visit_bytes(&self.scratch[..len])
+                Header::Bytes(Some(len)) => {
+                    if len <= self.scratch.len() {
+                        self.decoder.read_exact(&mut self.scratch[..len])?;
+                        visitor.visit_bytes(&self.scratch[..len])
+                    } else {
+                        visitor.visit_byte_buf(vec![0u8; len])
+                    }
                 }
 
                 Header::Array(len) => self.recurse(|me| {
