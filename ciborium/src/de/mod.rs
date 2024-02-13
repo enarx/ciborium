@@ -45,7 +45,8 @@ impl<E: de::Error> Expected<E> for Header {
     }
 }
 
-struct Deserializer<'b, R: Read> {
+/// Deserializer
+pub struct Deserializer<'b, R: Read> {
     decoder: Decoder<R>,
     scratch: &'b mut [u8],
     recurse: usize,
@@ -872,4 +873,41 @@ where
     };
 
     T::deserialize(&mut reader)
+}
+
+/// Returns a deserializer with a specified scratch buffer
+#[inline]
+pub fn deserializer_from_reader_with_buffer<R: Read>(
+    reader: R,
+    scratch_buffer: &mut [u8],
+) -> Deserializer<'_, R>
+where
+    R::Error: core::fmt::Debug,
+{
+    Deserializer {
+        decoder: reader.into(),
+        scratch: scratch_buffer,
+        recurse: 256,
+    }
+}
+
+/// Returns a deserializer with a specified scratch buffer
+/// amd maximum recursion limit. Inputs that are nested beyond the specified limit
+/// will result in [`Error::RecursionLimitExceeded`] .
+///
+/// Set a high recursion limit at your own risk (of stack exhaustion)!
+#[inline]
+pub fn deserializer_from_reader_with_buffer_and_recursion_limit<R: Read>(
+    reader: R,
+    scratch_buffer: &mut [u8],
+    recurse_limit: usize,
+) -> Deserializer<'_, R>
+where
+    R::Error: core::fmt::Debug,
+{
+    Deserializer {
+        decoder: reader.into(),
+        scratch: scratch_buffer,
+        recurse: recurse_limit,
+    }
 }
