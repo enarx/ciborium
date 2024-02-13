@@ -22,6 +22,10 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+/// Adapters of embedded-io::{Read, Write} implementing ciborium::{Read, Write}
+#[cfg(feature = "embedded-io")]
+pub mod eio;
+
 /// A trait indicating a type that can read bytes
 ///
 /// Note that this is similar to `std::io::Read`, but simplified for use in a
