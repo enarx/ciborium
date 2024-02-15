@@ -4,7 +4,7 @@ version = "0.2.2"
 authors = ["Nathaniel McCallum <npmccallum@profian.com>"]
 license = "Apache-2.0"
 edition = "2021"
-rust-version = "1.58"
+rust-version = "1.70"
 homepage = "https://github.com/enarx/ciborium"
 repository = "https://github.com/enarx/ciborium"
 description = "serde implementation of CBOR using ciborium-basic"
@@ -23,11 +23,11 @@ is-it-maintained-open-issues = { repository = "enarx/ciborium" }
 [dependencies]
 ciborium-ll = { path = "../ciborium-ll", version = "0.2.2" }
 ciborium-io = { path = "../ciborium-io", version = "0.2.2", features = ["alloc"] }
-serde = { version = "1.0.100", default-features = false, features = ["alloc", "derive"] }
+serde = { version = "1.0.170", default-features = false, features = ["alloc", "derive"] }
 
 [dev-dependencies]
 serde_bytes = "0.11"
-rstest = "0.11"
+rstest = "0.17"
 rand = "0.8"
 hex = "0.4"
 

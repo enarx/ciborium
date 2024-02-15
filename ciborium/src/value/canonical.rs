@@ -119,6 +119,6 @@ impl Ord for CanonicalValue {
 
 impl PartialOrd for CanonicalValue {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(cmp_value(&self.0, &other.0))
+        Some(self.cmp(other))
     }
 }
