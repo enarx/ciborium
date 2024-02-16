@@ -50,10 +50,8 @@ impl ser::Serialize for Value {
                     serializer.serialize_i64(x)
                 } else if let Ok(x) = u128::try_from(*x) {
                     serializer.serialize_u128(x)
-                } else if let Ok(x) = i128::try_from(*x) {
-                    serializer.serialize_i128(x)
                 } else {
-                    unreachable!()
+                    serializer.serialize_i128(i128::from(*x))
                 }
             }
 
