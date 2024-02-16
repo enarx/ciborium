@@ -243,10 +243,8 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
                     visitor.visit_u64(x)
                 } else if let Ok(x) = i64::try_from(*x) {
                     visitor.visit_i64(x)
-                } else if let Ok(x) = i128::try_from(*x) {
-                    visitor.visit_i128(x)
                 } else {
-                    unreachable!()
+                    visitor.visit_i128(i128::from(*x))
                 }
             }
 
