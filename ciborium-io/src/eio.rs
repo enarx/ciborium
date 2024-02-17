@@ -11,7 +11,8 @@ impl<'a, W> EIOWriter<'a, W> {
 }
 
 impl<'a, W> Write for EIOWriter<'a, W>
-where W: embedded_io::Write
+where
+    W: embedded_io::Write,
 {
     type Error = W::Error;
 
@@ -24,7 +25,6 @@ where W: embedded_io::Write
     }
 }
 
-
 /// Wrapper around R: embedded_io::Read implementing ciborium::Read
 pub struct EIOReader<'a, R>(&'a mut R);
 
@@ -36,7 +36,8 @@ impl<'a, R> EIOReader<'a, R> {
 }
 
 impl<'a, R> Read for EIOReader<'a, R>
-where R: embedded_io::Read
+where
+    R: embedded_io::Read,
 {
     type Error = embedded_io::ReadExactError<R::Error>;
 
