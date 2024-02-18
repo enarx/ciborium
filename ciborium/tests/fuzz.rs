@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#![cfg(unix)]
+
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
