@@ -220,7 +220,7 @@ macro_rules! map {
     case(core::f64::NAN, val!(core::f64::NAN), "fa7fc00000", true, Float),
     case(core::f32::NAN, val!(core::f32::NAN), "fb7ff8000000000000", true, Float),
     case(core::f64::NAN, val!(core::f64::NAN), "fb7ff8000000000000", true, Float),
-    case(-core::f32::NAN, val!(-core::f32::NAN), "f9fe00", false, Float),            // Not In RFC
+    case(-core::f32::NAN, val!(-core::f64::NAN), "f9fe00", false, Float),            // Not In RFC
     case(-core::f64::NAN, val!(-core::f64::NAN), "f9fe00", false, Float),            // Not In RFC
     case(-core::f32::NAN, val!(-core::f32::NAN), "faffc00000", true, Float),         // Not In RFC
     case(-core::f64::NAN, val!(-core::f64::NAN), "faffc00000", true, Float),         // Not In RFC
