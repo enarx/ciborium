@@ -131,8 +131,8 @@ fn eof() -> Error<std::io::Error> {
     case("7f4100ff", Error::Syntax(1)),
 
     // Indefinite-length string chunks not definite length:
-    //case("5f5f4100ffff", Error::Syntax(0)), These should fail, but do not currently.
-    //case("7f7f6100ffff", Error::Syntax(0)),
+    case("5f5f4100ffff", Error::Syntax(1)),
+    case("7f7f6100ffff", Error::Syntax(1)),
 
     // Break occurring on its own outside of an indefinite-length item:
     case("ff", Error::Semantic(None, "invalid type: break, expected non-break".into())),

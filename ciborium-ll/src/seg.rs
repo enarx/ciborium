@@ -158,14 +158,20 @@ impl<'r, R: Read, P: Parser> Segment<'r, R, P> {
     }
 }
 
+#[derive(Eq, PartialEq)]
+enum State {
+    Initial,
+    Continue,
+    Finished,
+}
+
 /// A sequence of CBOR segments
 ///
 /// CBOR allows for bytes or text items to be segmented. This type represents
 /// the state of that segmented input stream.
 pub struct Segments<'r, R: Read, P: Parser> {
     reader: &'r mut Decoder<R>,
-    finish: bool,
-    nested: usize,
+    state: State,
     parser: PhantomData<P>,
     unwrap: fn(Header) -> Result<Option<usize>, ()>,
 }
@@ -178,8 +184,7 @@ impl<'r, R: Read, P: Parser> Segments<'r, R, P> {
     ) -> Self {
         Self {
             reader: decoder,
-            finish: false,
-            nested: 0,
+            state: State::Initial,
             parser: PhantomData,
             unwrap,
         }
@@ -190,16 +195,26 @@ impl<'r, R: Read, P: Parser> Segments<'r, R, P> {
     /// Returns `Ok(None)` at the conclusion of the stream.
     #[inline]
     pub fn pull(&mut self) -> Result<Option<Segment<R, P>>, Error<R::Error>> {
-        while !self.finish {
+        while self.state != State::Finished {
             let offset = self.reader.offset();
             match self.reader.pull()? {
-                Header::Break if self.nested == 1 => return Ok(None),
-                Header::Break if self.nested > 1 => self.nested -= 1,
+                Header::Break => {
+                    self.state = State::Finished;
+                    return Ok(None);
+                }
                 header => match (self.unwrap)(header) {
                     Err(..) => return Err(Error::Syntax(offset)),
-                    Ok(None) => self.nested += 1,
+                    Ok(None) => {
+                        if self.state == State::Initial {
+                            self.state = State::Continue;
+                        } else {
+                            return Err(Error::Syntax(offset));
+                        }
+                    }
                     Ok(Some(len)) => {
-                        self.finish = self.nested == 0;
+                        if self.state == State::Initial {
+                            self.state = State::Finished;
+                        }
                         return Ok(Some(Segment {
                             reader: self.reader,
                             unread: len,
@@ -212,5 +227,28 @@ impl<'r, R: Read, P: Parser> Segments<'r, R, P> {
         }
 
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn segments() {
+        fn t(data: &[u8], len: usize) {
+            let mut dec = Decoder::from(data);
+            let mut segs = Segments::<_, Bytes>::new(&mut dec, |header| match header {
+                Header::Bytes(len) => Ok(len),
+                _ => Err(()),
+            });
+            while let Some(mut seg) = segs.pull().unwrap() {
+                let mut b = [0; 1];
+                assert_eq!(Some(&b"0"[..]), seg.pull(&mut b).unwrap());
+            }
+            assert_eq!(len, dec.offset());
+        }
+        t(b"\x410\x00", 2);
+        t(b"\x5f\x410\xff\x00", 4);
     }
 }
