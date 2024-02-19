@@ -33,7 +33,7 @@ fn map() {
 fn bytes() {
     let bytes = [0x5f; 128 * 1024];
     match from_reader::<Value, _>(&bytes[..]).unwrap_err() {
-        Error::Io(..) => (),
+        Error::Syntax(..) => (),
         e => panic!("incorrect error: {:?}", e),
     }
 }
@@ -42,7 +42,7 @@ fn bytes() {
 fn text() {
     let bytes = [0x7f; 128 * 1024];
     match from_reader::<Value, _>(&bytes[..]).unwrap_err() {
-        Error::Io(..) => (),
+        Error::Syntax(..) => (),
         e => panic!("incorrect error: {:?}", e),
     }
 }
