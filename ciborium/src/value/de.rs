@@ -124,7 +124,7 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
 
     #[inline]
     fn visit_map<A: de::MapAccess<'de>>(self, mut acc: A) -> Result<Self::Value, A::Error> {
-        let mut map = Vec::<(Value, Value)>::new();
+        let mut map = Vec::<(Value, Value)>::with_capacity(acc.size_hint().unwrap_or(0));
 
         while let Some(kv) = acc.next_entry()? {
             map.push(kv);
@@ -540,6 +540,29 @@ impl<'a, 'de, T: Iterator<Item = &'a (Value, Value)>> de::MapAccess<'de>
         seed: V,
     ) -> Result<V::Value, Self::Error> {
         seed.deserialize(Deserializer(&self.0.next().unwrap().1))
+    }
+
+    #[inline]
+    fn next_entry_seed<K: de::DeserializeSeed<'de>, V: de::DeserializeSeed<'de>>(
+        &mut self,
+        kseed: K,
+        vseed: V,
+    ) -> Result<Option<(K::Value, V::Value)>, Self::Error> {
+        match self.0.next() {
+            Some((k, v)) => Ok(Some((
+                kseed.deserialize(Deserializer(k))?,
+                vseed.deserialize(Deserializer(v))?,
+            ))),
+            None => Ok(None),
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Option<usize> {
+        match self.0.size_hint() {
+            (lower, Some(upper)) if lower == upper => Some(upper),
+            _ => None,
+        }
     }
 }
 
