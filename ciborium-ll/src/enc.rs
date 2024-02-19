@@ -28,6 +28,11 @@ impl<W: Write> Write for Encoder<W> {
 }
 
 impl<W: Write> Encoder<W> {
+    /// Unwraps the `Write`, consuming the `Encoder`.
+    pub fn into_inner(self) -> W {
+        self.0
+    }
+
     /// Push a `Header` to the wire
     #[inline]
     pub fn push(&mut self, header: Header) -> Result<(), W::Error> {
