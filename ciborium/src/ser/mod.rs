@@ -12,7 +12,7 @@ use ciborium_io::Write;
 use ciborium_ll::*;
 use serde::{ser, Serialize as _};
 
-struct Serializer<W: Write>(Encoder<W>);
+struct Serializer<W>(Encoder<W>);
 
 impl<W: Write> From<W> for Serializer<W> {
     #[inline]
@@ -335,7 +335,7 @@ macro_rules! end {
     };
 }
 
-struct CollectionSerializer<'a, W: Write> {
+struct CollectionSerializer<'a, W> {
     encoder: &'a mut Serializer<W>,
     ending: bool,
     tag: bool,

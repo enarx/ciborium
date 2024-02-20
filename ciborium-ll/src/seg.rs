@@ -111,7 +111,7 @@ impl Parser for Text {
 ///
 /// This type represents a single bytes or text segment on the wire. It can be
 /// read out in parsed chunks based on the size of the input scratch buffer.
-pub struct Segment<'r, R: Read, P: Parser> {
+pub struct Segment<'r, R, P> {
     reader: &'r mut Decoder<R>,
     unread: usize,
     offset: usize,
@@ -169,14 +169,14 @@ enum State {
 ///
 /// CBOR allows for bytes or text items to be segmented. This type represents
 /// the state of that segmented input stream.
-pub struct Segments<'r, R: Read, P: Parser> {
+pub struct Segments<'r, R, P> {
     reader: &'r mut Decoder<R>,
     state: State,
     parser: PhantomData<P>,
     unwrap: fn(Header) -> Result<Option<usize>, ()>,
 }
 
-impl<'r, R: Read, P: Parser> Segments<'r, R, P> {
+impl<'r, R, P> Segments<'r, R, P> {
     #[inline]
     pub(crate) fn new(
         decoder: &'r mut Decoder<R>,
@@ -189,7 +189,9 @@ impl<'r, R: Read, P: Parser> Segments<'r, R, P> {
             unwrap,
         }
     }
+}
 
+impl<'r, R: Read, P: Parser> Segments<'r, R, P> {
     /// Gets the next segment in the stream
     ///
     /// Returns `Ok(None)` at the conclusion of the stream.
