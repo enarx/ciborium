@@ -6,7 +6,7 @@ use ciborium_io::Write;
 ///
 /// This structure wraps a writer and provides convenience functions for
 /// writing `Header` objects to the wire.
-pub struct Encoder<W: Write>(W);
+pub struct Encoder<W>(W);
 
 impl<W: Write> From<W> for Encoder<W> {
     #[inline]

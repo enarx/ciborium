@@ -49,7 +49,7 @@ impl<E: de::Error> Expected<E> for Header {
 }
 
 /// Deserializer
-pub struct Deserializer<'b, R: Read> {
+pub struct Deserializer<'b, R> {
     decoder: Decoder<R>,
     scratch: &'b mut [u8],
     recurse: usize,
@@ -634,7 +634,7 @@ where
     }
 }
 
-struct Access<'a, 'b, R: Read>(&'a mut Deserializer<'b, R>, Option<usize>);
+struct Access<'a, 'b, R>(&'a mut Deserializer<'b, R>, Option<usize>);
 
 impl<'de, 'a, 'b, R: Read> de::SeqAccess<'de> for Access<'a, 'b, R>
 where
@@ -757,7 +757,7 @@ where
     }
 }
 
-struct BytesAccess<R: Read>(usize, Vec<u8>, core::marker::PhantomData<R>);
+struct BytesAccess<R>(usize, Vec<u8>, core::marker::PhantomData<R>);
 
 impl<'de, R: Read> de::SeqAccess<'de> for BytesAccess<R>
 where
@@ -787,7 +787,7 @@ where
     }
 }
 
-struct TagAccess<'a, 'b, R: Read>(&'a mut Deserializer<'b, R>, usize);
+struct TagAccess<'a, 'b, R>(&'a mut Deserializer<'b, R>, usize);
 
 impl<'de, 'a, 'b, R: Read> de::Deserializer<'de> for &mut TagAccess<'a, 'b, R>
 where

@@ -28,7 +28,7 @@ impl<T> From<T> for Error<T> {
 /// This decoder manages the low-level decoding of CBOR items into `Header`
 /// objects. It also contains utility functions for parsing segmented bytes
 /// and text inputs.
-pub struct Decoder<R: Read> {
+pub struct Decoder<R> {
     reader: R,
     offset: usize,
     buffer: Option<Title>,
