@@ -10,7 +10,10 @@ use alloc::{string::String, vec::Vec};
 
 use ciborium_io::Read;
 use ciborium_ll::*;
-use serde::{de, de::Deserializer as _, forward_to_deserialize_any};
+use serde::{
+    de::{self, value::BytesDeserializer, Deserializer as _},
+    forward_to_deserialize_any,
+};
 
 trait Expected<E: de::Error> {
     fn expected(self, kind: &'static str) -> E;
@@ -52,6 +55,8 @@ pub struct Deserializer<'b, R: Read> {
     recurse: usize,
 }
 
+fn noop(_: u8) {}
+
 impl<'a, R: Read> Deserializer<'a, R>
 where
     R::Error: core::fmt::Debug,
@@ -72,7 +77,12 @@ where
     }
 
     #[inline]
-    fn integer(&mut self, mut header: Option<Header>) -> Result<(bool, u128), Error<R::Error>> {
+    fn integer<A: FnMut(u8)>(
+        &mut self,
+        mut header: Option<Header>,
+        should_append: bool,
+        mut append: A,
+    ) -> Result<(bool, u128), Error<R::Error>> {
         loop {
             let header = match header.take() {
                 Some(h) => h,
@@ -99,7 +109,22 @@ where
                         while let Some(chunk) = segment.pull(&mut buffer)? {
                             for b in chunk {
                                 match index {
-                                    16 => return Err(de::Error::custom("bigint too large")),
+                                    16 => {
+                                        if should_append {
+                                            for v in value {
+                                                append(v);
+                                            }
+                                            append(*b);
+                                            index = 17; // Indicate overflow, see below
+                                            continue;
+                                        }
+                                        return Err(de::Error::custom("bigint too large"));
+                                    }
+                                    17 => {
+                                        debug_assert!(should_append);
+                                        append(*b);
+                                        continue;
+                                    }
                                     0 if *b == 0 => continue, // Skip leading zeros
                                     _ => value[index] = *b,
                                 }
@@ -109,8 +134,12 @@ where
                         }
                     }
 
-                    value[..index].reverse();
-                    Ok((neg, u128::from_le_bytes(value)))
+                    if index == 17 {
+                        Ok((false, 0))
+                    } else {
+                        value[..index].reverse();
+                        Ok((neg, u128::from_le_bytes(value)))
+                    }
                 }
 
                 h => Err(h.expected("bytes")),
@@ -157,18 +186,21 @@ where
                 let header = self.decoder.pull()?;
                 self.decoder.push(header);
 
-                // If it is bytes, capture the length.
-                let len = match header {
-                    Header::Bytes(x) => x,
-                    _ => None,
-                };
-
-                match (tag, len) {
-                    (tag::BIGPOS, Some(len)) | (tag::BIGNEG, Some(len)) if len <= 16 => {
-                        let result = match self.integer(Some(Header::Tag(tag)))? {
-                            (false, raw) => return visitor.visit_u128(raw),
-                            (true, raw) => i128::try_from(raw).map(|x| x ^ !0),
-                        };
+                match tag {
+                    tag::BIGPOS | tag::BIGNEG => {
+                        let mut bytes = Vec::new();
+                        let result =
+                            match self.integer(Some(Header::Tag(tag)), true, |b| bytes.push(b))? {
+                                (false, _) if !bytes.is_empty() => {
+                                    let access = crate::tag::TagAccess::new(
+                                        BytesDeserializer::new(&bytes),
+                                        Some(tag),
+                                    );
+                                    return visitor.visit_enum(access);
+                                }
+                                (false, raw) => return visitor.visit_u128(raw),
+                                (true, raw) => i128::try_from(raw).map(|x| x ^ !0),
+                            };
 
                         match result {
                             Ok(x) => visitor.visit_i128(x),
@@ -238,7 +270,7 @@ where
     }
 
     fn deserialize_i64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let result = match self.integer(None)? {
+        let result = match self.integer(None, false, noop)? {
             (false, raw) => i64::try_from(raw),
             (true, raw) => i64::try_from(raw).map(|x| x ^ !0),
         };
@@ -250,7 +282,7 @@ where
     }
 
     fn deserialize_i128<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let result = match self.integer(None)? {
+        let result = match self.integer(None, false, noop)? {
             (false, raw) => i128::try_from(raw),
             (true, raw) => i128::try_from(raw).map(|x| x ^ !0),
         };
@@ -274,7 +306,7 @@ where
     }
 
     fn deserialize_u64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let result = match self.integer(None)? {
+        let result = match self.integer(None, false, noop)? {
             (false, raw) => u64::try_from(raw),
             (true, ..) => return Err(de::Error::custom("unexpected negative integer")),
         };
@@ -286,7 +318,7 @@ where
     }
 
     fn deserialize_u128<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        match self.integer(None)? {
+        match self.integer(None, false, noop)? {
             (false, raw) => visitor.visit_u128(raw),
             (true, ..) => Err(de::Error::custom("unexpected negative integer")),
         }

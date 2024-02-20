@@ -460,6 +460,11 @@ mod tests {
                     Header::Break,
                 ],
             ),
+            ("c340", &[Header::Tag(3), Header::Bytes(Some(0))]),
+            (
+                "c35fff",
+                &[Header::Tag(3), Header::Bytes(None), Header::Break],
+            ),
         ];
 
         for (bytes, headers) in data {
