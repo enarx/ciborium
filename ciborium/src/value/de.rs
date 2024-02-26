@@ -3,7 +3,7 @@
 use super::{Error, Integer, Value};
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::{iter::Peekable, mem::size_of};
+use core::iter::Peekable;
 
 use ciborium_ll::tag;
 use serde::de::{self, Deserializer as _};
