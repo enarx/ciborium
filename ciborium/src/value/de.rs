@@ -3,7 +3,7 @@
 use super::{Error, Integer, Value};
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::iter::Peekable;
+use core::{iter::Peekable, mem::size_of};
 
 use ciborium_ll::tag;
 use serde::de::{self, Deserializer as _};
@@ -124,7 +124,9 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
 
     #[inline]
     fn visit_map<A: de::MapAccess<'de>>(self, mut acc: A) -> Result<Self::Value, A::Error> {
-        let mut map = Vec::<(Value, Value)>::with_capacity(acc.size_hint().unwrap_or(0));
+        let mut map = Vec::<(Value, Value)>::with_capacity(
+            acc.size_hint().filter(|&l| l < 1024).unwrap_or(0),
+        );
 
         while let Some(kv) = acc.next_entry()? {
             map.push(kv);
