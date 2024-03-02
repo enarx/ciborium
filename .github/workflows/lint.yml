@@ -6,44 +6,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          components: rustfmt
-          toolchain: stable
-          profile: minimal
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - name: Setup Rust toolchain
+        run: rustup show && rustup update
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
 
   clippy:
     name: cargo clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          components: clippy
-          toolchain: stable
-          profile: minimal
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+      - name: Setup Rust toolchain
+        run: rustup show && rustup update
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-features --tests -- -D warnings
 
   readme:
     name: cargo readme
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-      - run: cargo install cargo-readme
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo +stable install cargo-readme
       - run: cd ciborium-io && cargo readme > README.md
       - run: cd ciborium-ll && cargo readme > README.md
       - run: cd ciborium && cargo readme > README.md

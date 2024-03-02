@@ -472,8 +472,8 @@ mod tests {
 
             // Test decoding
             let mut decoder = Decoder::from(&bytes[..]);
-            for header in headers.iter().cloned() {
-                assert_eq!(header, decoder.pull().unwrap());
+            for header in headers.iter() {
+                assert_eq!(*header, decoder.pull().unwrap());
             }
 
             // Test encoding
