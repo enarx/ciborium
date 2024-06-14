@@ -296,7 +296,7 @@ fn codec<'de, T: Serialize + Clone, V: Debug + PartialEq + DeserializeOwned, F: 
         assert_eq!(bytes, encoded);
 
         let mut encoded = Vec::new();
-        into_writer(&value, &mut encoded).unwrap();
+        into_writer(&input, &mut encoded).unwrap();
         eprintln!("{:x?} == {:x?}", bytes, encoded);
         assert_eq!(bytes, encoded);
 

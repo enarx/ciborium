@@ -106,6 +106,10 @@ pub use crate::de::from_reader_with_buffer;
 #[doc(inline)]
 pub use crate::ser::into_writer;
 
+#[cfg(feature = "std")]
+#[doc(inline)]
+pub use crate::ser::into_vec;
+
 #[doc(inline)]
 pub use crate::value::Value;
 
