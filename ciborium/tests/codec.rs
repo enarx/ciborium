@@ -7,7 +7,9 @@ use std::convert::TryFrom;
 use std::fmt::Debug;
 
 use ciborium::value::Value;
-use ciborium::{cbor, de::from_reader, de::from_reader_with_buffer, ser::into_writer};
+use ciborium::{
+    cbor, de::from_reader, de::from_reader_with_buffer, ser::into_vec, ser::into_writer,
+};
 
 use rstest::rstest;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -290,13 +292,11 @@ fn codec<'de, T: Serialize + Clone, V: Debug + PartialEq + DeserializeOwned, F: 
     let bytes = hex::decode(bytes).unwrap();
 
     if !alternate {
-        let mut encoded = Vec::new();
-        into_writer(&input, &mut encoded).unwrap();
+        let encoded = into_vec(&input).unwrap();
         eprintln!("{:x?} == {:x?}", bytes, encoded);
         assert_eq!(bytes, encoded);
 
-        let mut encoded = Vec::new();
-        into_writer(&value, &mut encoded).unwrap();
+        let encoded = into_vec(&value).unwrap();
         eprintln!("{:x?} == {:x?}", bytes, encoded);
         assert_eq!(bytes, encoded);
 

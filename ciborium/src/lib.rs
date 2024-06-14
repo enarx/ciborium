@@ -107,6 +107,9 @@ pub use crate::de::from_reader_with_buffer;
 pub use crate::ser::into_writer;
 
 #[doc(inline)]
+pub use crate::ser::into_vec;
+
+#[doc(inline)]
 pub use crate::value::Value;
 
 /// Build a `Value` conveniently.
