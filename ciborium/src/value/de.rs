@@ -365,6 +365,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
 
         match value {
             Value::Bytes(x) => visitor.visit_bytes(x),
+            Value::Array(x) => visitor.visit_seq(Deserializer(x.iter())),
             _ => Err(de::Error::invalid_type(value.into(), &"bytes")),
         }
     }
@@ -639,5 +640,20 @@ impl Value {
     #[inline]
     pub fn deserialized<'de, T: de::Deserialize<'de>>(&self) -> Result<T, Error> {
         T::deserialize(Deserializer(self))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserialize_bytes_from_array() {
+        let value = Value::serialized(&[1, 2, 3, 4]).unwrap();
+        assert!(value.is_array());
+
+        let bytes = value.deserialized::<serde_bytes::ByteArray<4>>().unwrap();
+
+        assert_eq!(bytes, &[1, 2, 3, 4]);
     }
 }
