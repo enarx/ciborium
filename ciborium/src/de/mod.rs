@@ -53,6 +53,7 @@ pub struct Deserializer<'b, R> {
     decoder: Decoder<R>,
     scratch: &'b mut [u8],
     recurse: usize,
+    integers_as_floats: bool,
 }
 
 fn noop(_: u8) {}
@@ -252,6 +253,10 @@ where
             return match self.decoder.pull()? {
                 Header::Tag(..) => continue,
                 Header::Float(x) => visitor.visit_f64(x),
+                header @ (Header::Positive(_) | Header::Negative(_)) if self.integers_as_floats => {
+                    self.decoder.push(header);
+                    self.deserialize_i64(visitor)
+                }
                 h => Err(h.expected("float")),
             };
         }
@@ -848,6 +853,80 @@ where
     }
 }
 
+/// Options for customizing the behavior of deserialization.
+///
+/// This structure is generic on the nature of the scratch buffer,
+/// since the `from_reader_` family of functions do not require one to be provided,
+/// whereas the `deserializer_from_reader_` functions do require one.
+///
+/// Therefore, you're better of instantiating this struct via its type aliases,
+/// [`FromReaderOptions`] and [`DeserializerFromReaderOptions`].
+///
+/// # Examples
+///
+/// See documentation for [`from_reader_with_options`] and [`deserializer_from_reader_with_options`].
+pub struct DeserializationOptions<S> {
+    scratch: S,
+    recurse: usize,
+    integers_as_floats: bool,
+}
+
+impl<'b> DeserializationOptions<Option<&'b mut [u8]>> {
+    /// Creates a [`FromReaderOptions`] with default values, for use with [`from_reader_with_options`].
+    pub fn new() -> Self {
+        Self {
+            scratch: None,
+            recurse: 256,
+            integers_as_floats: false,
+        }
+    }
+
+    /// Use the specified scratch buffer.
+    ///
+    /// Increasing this past 4KB can increase deserialization speed at the cost of
+    /// more memory.
+    pub fn scratch_buffer(mut self, scratch_buffer: &'b mut [u8]) -> Self {
+        self.scratch = Some(scratch_buffer);
+        self
+    }
+}
+impl<'b> DeserializationOptions<&'b mut [u8]> {
+    /// Creates a [`DeserializerFromReaderOptions`] with default values, for use with
+    /// [`deserializer_from_reader_with_options`].
+    pub fn new(scratch_buffer: &'b mut [u8]) -> Self {
+        Self {
+            scratch: scratch_buffer,
+            recurse: 256,
+            integers_as_floats: false,
+        }
+    }
+}
+impl<S> DeserializationOptions<S> {
+    /// Use a specified maximum recursion limit. Inputs that are nested beyond the specified limit
+    /// will result in [`Error::RecursionLimitExceeded`] .
+    ///
+    /// Set a high recursion limit at your own risk (of stack exhaustion)!
+    pub fn recurse_limit(mut self, recurse_limit: usize) -> Self {
+        self.recurse = recurse_limit;
+        self
+    }
+
+    /// When floats are expected in the output format, also allow integers to be used.
+    ///
+    /// Note that this won't round trip properly, as round-tripping `1` will become `1.0`.
+    pub fn integers_as_floats(mut self, integers_as_floats: bool) -> Self {
+        self.integers_as_floats = integers_as_floats;
+        self
+    }
+}
+
+/// Type alias for the deserialization options for [`from_reader_with_options`],
+/// which doesn't require a provided scratch buffer unless wanted by the caller.
+pub type FromReaderOptions<'b> = DeserializationOptions<Option<&'b mut [u8]>>;
+/// Type alias for the deserialization options for [`deserializer_from_reader_with_options`],
+/// which requires a provides scratch buffer.
+pub type DeserializerFromReaderOptions<'b> = DeserializationOptions<&'b mut [u8]>;
+
 /// Deserializes as CBOR from a type with [`impl
 /// ciborium_io::Read`](ciborium_io::Read) using a 4KB buffer on the stack.
 ///
@@ -859,8 +938,10 @@ pub fn from_reader<T: de::DeserializeOwned, R: Read>(reader: R) -> Result<T, Err
 where
     R::Error: core::fmt::Debug,
 {
-    let mut scratch = [0; 4096];
-    from_reader_with_buffer(reader, &mut scratch)
+    from_reader_with_options(
+        reader,
+        FromReaderOptions::new()
+    )
 }
 
 /// Deserializes as CBOR from a type with [`impl
@@ -874,13 +955,11 @@ pub fn from_reader_with_buffer<T: de::DeserializeOwned, R: Read>(
 where
     R::Error: core::fmt::Debug,
 {
-    let mut reader = Deserializer {
-        decoder: reader.into(),
-        scratch: scratch_buffer,
-        recurse: 256,
-    };
-
-    T::deserialize(&mut reader)
+    from_reader_with_options(
+        reader,
+        FromReaderOptions::new()
+            .scratch_buffer(scratch_buffer)
+    )
 }
 
 /// Deserializes as CBOR from a type with [`impl ciborium_io::Read`](ciborium_io::Read), with
@@ -896,15 +975,63 @@ pub fn from_reader_with_recursion_limit<T: de::DeserializeOwned, R: Read>(
 where
     R::Error: core::fmt::Debug,
 {
-    let mut scratch = [0; 4096];
+    from_reader_with_options(
+        reader,
+        FromReaderOptions::new()
+            .recurse_limit(recurse_limit)
+    )
+}
 
-    let mut reader = Deserializer {
-        decoder: reader.into(),
-        scratch: &mut scratch,
-        recurse: recurse_limit,
-    };
-
-    T::deserialize(&mut reader)
+/// Deserializes as CBOR from a type with [`impl ciborium_io::Read`](ciborium_io::Read), with
+/// specified options.
+///
+/// Description of the options can be found on [`FromReaderOptions`].
+///
+/// # Examples
+///
+/// ```
+/// use ciborium::de::{from_reader_with_options, FromReaderOptions};
+///
+/// let input = &[0x19, 0x01, 0x00][..];
+/// let result: f32 =
+///     from_reader_with_options(
+///         input,
+///         FromReaderOptions::new()
+///             .integers_as_floats(true)
+///     )
+///     .unwrap();
+///
+/// assert_eq!(result, 256.0);
+/// ```
+#[inline]
+pub fn from_reader_with_options<T: de::DeserializeOwned, R: Read>(
+    reader: R,
+    options: FromReaderOptions,
+) -> Result<T, Error<R::Error>>
+where
+    R::Error: core::fmt::Debug,
+{
+    match options.scratch {
+        Some(scratch) => {
+            let options = DeserializerFromReaderOptions {
+                scratch,
+                recurse: options.recurse,
+                integers_as_floats: options.integers_as_floats,
+            };
+            let mut deserializer = deserializer_from_reader_with_options(reader, options);
+            T::deserialize(&mut deserializer)
+        }
+        None => {
+            let mut scratch = [0; 4096];
+            let options = DeserializerFromReaderOptions {
+                scratch: &mut scratch,
+                recurse: options.recurse,
+                integers_as_floats: options.integers_as_floats,
+            };
+            let mut deserializer = deserializer_from_reader_with_options(reader, options);
+            T::deserialize(&mut deserializer)
+        }
+    }
 }
 
 /// Returns a deserializer with a specified scratch buffer
@@ -916,11 +1043,10 @@ pub fn deserializer_from_reader_with_buffer<R: Read>(
 where
     R::Error: core::fmt::Debug,
 {
-    Deserializer {
-        decoder: reader.into(),
-        scratch: scratch_buffer,
-        recurse: 256,
-    }
+    deserializer_from_reader_with_options(
+        reader,
+        DeserializerFromReaderOptions::new(scratch_buffer)
+    )
 }
 
 /// Returns a deserializer with a specified scratch buffer
@@ -937,9 +1063,47 @@ pub fn deserializer_from_reader_with_buffer_and_recursion_limit<R: Read>(
 where
     R::Error: core::fmt::Debug,
 {
+    deserializer_from_reader_with_options(
+        reader,
+        DeserializerFromReaderOptions::new(scratch_buffer)
+            .recurse_limit(recurse_limit)
+    )
+}
+
+/// Returns a deserializer with specified options.
+///
+/// Description of the options can be found on [`DeserializerFromReaderOptions`].
+///
+/// # Examples
+///
+/// ```
+/// use serde::Deserialize;
+/// use ciborium::de::{deserializer_from_reader_with_options, DeserializerFromReaderOptions};
+///
+/// let input = &[0x19, 0x01, 0x00][..];
+/// let mut scratch = [0u8; 4096];
+/// let mut deserializer =
+///     deserializer_from_reader_with_options(
+///         input,
+///         DeserializerFromReaderOptions::new(&mut scratch)
+///             .integers_as_floats(true)
+///     );
+/// let result = f32::deserialize(&mut deserializer).unwrap();
+///
+/// assert_eq!(result, 256.0);
+/// ```
+#[inline]
+pub fn deserializer_from_reader_with_options<R: Read>(
+    reader: R,
+    options: DeserializerFromReaderOptions,
+) -> Deserializer<'_, R>
+where
+    R::Error: core::fmt::Debug,
+{
     Deserializer {
         decoder: reader.into(),
-        scratch: scratch_buffer,
-        recurse: recurse_limit,
+        scratch: options.scratch,
+        recurse: options.recurse,
+        integers_as_floats: options.integers_as_floats,
     }
 }
