@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::tag::TagAccess;
+
 use super::{Error, Integer, Value};
 
 use alloc::{boxed::Box, string::String, vec::Vec};
@@ -236,7 +238,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
 
             Value::Tag(t, v) => {
                 let parent: Deserializer<&Value> = Deserializer(v);
-                let access = crate::tag::TagAccess::new(parent, Some(*t));
+                let access = TagAccess::new(parent, Some(*t));
                 visitor.visit_enum(access)
             }
 
@@ -489,7 +491,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
             };
 
             let parent: Deserializer<&Value> = Deserializer(val);
-            let access = crate::tag::TagAccess::new(parent, tag);
+            let access = TagAccess::new(parent, tag);
             return visitor.visit_enum(access);
         }
 
