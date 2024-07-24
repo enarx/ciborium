@@ -10,10 +10,9 @@ use alloc::{string::String, vec::Vec};
 
 use ciborium_io::Read;
 use ciborium_ll::*;
-use serde::{
-    de::{self, value::BytesDeserializer, Deserializer as _},
-    forward_to_deserialize_any,
-};
+use serde::de::{self, value::BytesDeserializer, Deserializer as _};
+
+use crate::tag::TagAccess;
 
 trait Expected<E: de::Error> {
     fn expected(self, kind: &'static str) -> E;
@@ -182,20 +181,14 @@ where
             Header::Tag(tag) => {
                 let _: Header = self.decoder.pull()?;
 
-                // Peek at the next item.
-                let header = self.decoder.pull()?;
-                self.decoder.push(header);
-
                 match tag {
                     tag::BIGPOS | tag::BIGNEG => {
                         let mut bytes = Vec::new();
                         let result =
                             match self.integer(Some(Header::Tag(tag)), true, |b| bytes.push(b))? {
                                 (false, _) if !bytes.is_empty() => {
-                                    let access = crate::tag::TagAccess::new(
-                                        BytesDeserializer::new(&bytes),
-                                        Some(tag),
-                                    );
+                                    let access =
+                                        TagAccess::new(BytesDeserializer::new(&bytes), Some(tag));
                                     return visitor.visit_enum(access);
                                 }
                                 (false, raw) => return visitor.visit_u128(raw),
@@ -209,7 +202,7 @@ where
                     }
 
                     _ => self.recurse(|me| {
-                        let access = crate::tag::TagAccess::new(me, Some(tag));
+                        let access = TagAccess::new(me, Some(tag));
                         visitor.visit_enum(access)
                     }),
                 }
@@ -608,7 +601,7 @@ where
             };
 
             return self.recurse(|me| {
-                let access = crate::tag::TagAccess::new(me, tag);
+                let access = TagAccess::new(me, tag);
                 visitor.visit_enum(access)
             });
         }
@@ -784,67 +777,6 @@ where
     #[inline]
     fn size_hint(&self) -> Option<usize> {
         Some(self.1.len() - self.0)
-    }
-}
-
-struct TagAccess<'a, 'b, R>(&'a mut Deserializer<'b, R>, usize);
-
-impl<'de, 'a, 'b, R: Read> de::Deserializer<'de> for &mut TagAccess<'a, 'b, R>
-where
-    R::Error: core::fmt::Debug,
-{
-    type Error = Error<R::Error>;
-
-    #[inline]
-    fn deserialize_any<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let offset = self.0.decoder.offset();
-
-        match self.0.decoder.pull()? {
-            Header::Tag(x) => visitor.visit_u64(x),
-            _ => Err(Error::semantic(offset, "expected tag")),
-        }
-    }
-
-    forward_to_deserialize_any! {
-        i8 i16 i32 i64 i128
-        u8 u16 u32 u64 u128
-        bool f32 f64
-        char str string
-        bytes byte_buf
-        seq map
-        struct tuple tuple_struct
-        identifier ignored_any
-        option unit unit_struct newtype_struct enum
-    }
-}
-
-impl<'de, 'a, 'b, R: Read> de::SeqAccess<'de> for TagAccess<'a, 'b, R>
-where
-    R::Error: core::fmt::Debug,
-{
-    type Error = Error<R::Error>;
-
-    #[inline]
-    fn next_element_seed<U: de::DeserializeSeed<'de>>(
-        &mut self,
-        seed: U,
-    ) -> Result<Option<U::Value>, Self::Error> {
-        self.1 += 1;
-
-        match self.1 {
-            1 => seed.deserialize(self).map(Some),
-            2 => seed.deserialize(&mut *self.0).map(Some),
-            _ => Ok(None),
-        }
-    }
-
-    #[inline]
-    fn size_hint(&self) -> Option<usize> {
-        Some(match self.1 {
-            0 => 2,
-            1 => 1,
-            _ => 0,
-        })
     }
 }
 
