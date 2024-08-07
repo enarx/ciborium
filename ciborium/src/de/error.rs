@@ -6,7 +6,7 @@ use core::fmt::{Debug, Display, Formatter, Result};
 use serde::de::{Error as DeError, StdError};
 
 /// An error occurred during deserialization
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Error<T> {
     /// An error occurred while reading bytes
     ///
