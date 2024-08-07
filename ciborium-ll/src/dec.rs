@@ -3,7 +3,7 @@ use super::*;
 use ciborium_io::Read;
 
 /// An error that occurred while decoding
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Error<T> {
     /// An error occurred while reading bytes
     ///
