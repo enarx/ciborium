@@ -105,7 +105,7 @@ impl<W: Write + ?Sized> Write for &mut W {
 
 /// An error indicating there are no more bytes to read
 #[cfg(not(feature = "std"))]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EndOfFile(());
 
 #[cfg(not(feature = "std"))]
@@ -127,7 +127,7 @@ impl Read for &[u8] {
 
 /// An error indicating that the output cannot accept more bytes
 #[cfg(not(feature = "std"))]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct OutOfSpace(());
 
 #[cfg(not(feature = "std"))]

@@ -6,7 +6,7 @@ use core::fmt::{Debug, Display, Formatter, Result};
 use serde::ser::{Error as SerError, StdError};
 
 /// An error occurred during serialization
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Error<T> {
     /// An error occurred while writing bytes
     ///

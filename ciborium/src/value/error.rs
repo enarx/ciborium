@@ -3,7 +3,7 @@
 use alloc::string::{String, ToString};
 
 /// The error when serializing to/from a `Value`
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Error {
     /// A custom error string produced by serde
     Custom(String),
