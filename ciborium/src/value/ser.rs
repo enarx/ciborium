@@ -5,6 +5,7 @@ use super::{Error, Value};
 use alloc::{vec, vec::Vec};
 
 use ::serde::ser::{self, SerializeMap as _, SerializeSeq as _, SerializeTupleVariant as _};
+use ciborium_ll::simple::{FALSE, NULL, TRUE};
 
 impl ser::Serialize for Value {
     #[inline]
@@ -12,8 +13,10 @@ impl ser::Serialize for Value {
         match self {
             Value::Bytes(x) => serializer.serialize_bytes(x),
             Value::Bool(x) => serializer.serialize_bool(*x),
+            Value::Simple(FALSE) => serializer.serialize_bool(false),
+            Value::Simple(TRUE) => serializer.serialize_bool(true),
             Value::Text(x) => serializer.serialize_str(x),
-            Value::Null => serializer.serialize_unit(),
+            Value::Null | Value::Simple(NULL) => serializer.serialize_unit(),
 
             Value::Tag(t, v) => {
                 let mut acc = serializer.serialize_tuple_variant("@@TAG@@", 0, "@@TAGGED@@", 2)?;
@@ -74,6 +77,8 @@ impl ser::Serialize for Value {
 
                 map.end()
             }
+
+            Value::Simple(x) => serializer.serialize_newtype_struct("@@SIMPLE@@", x),
         }
     }
 }
@@ -174,10 +179,16 @@ impl ser::Serializer for Serializer<()> {
     #[inline]
     fn serialize_newtype_struct<U: ?Sized + ser::Serialize>(
         self,
-        _name: &'static str,
+        name: &'static str,
         value: &U,
     ) -> Result<Value, Error> {
-        value.serialize(self)
+        match name {
+            "@@SIMPLE@@" => match value.serialize(crate::simple::Serializer) {
+                Ok(x) => Ok(Value::Simple(x)),
+                _ => Err(Error::Custom("expected simple value".into())),
+            },
+            _ => value.serialize(self),
+        }
     }
 
     #[inline]

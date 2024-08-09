@@ -114,7 +114,7 @@ fn eof() -> Error<std::io::Error> {
     case("fd", Error::Syntax(0)),
     case("fe", Error::Syntax(0)),
 
-    // Reserved two-byte encodings of simple values:
+    // Forbidden two-byte encodings of one-byte simple values:
     case("f800", Error::Semantic(None, "invalid type: simple, expected known simple value".into())),
     case("f801", Error::Semantic(None, "invalid type: simple, expected known simple value".into())),
     case("f818", Error::Semantic(None, "invalid type: simple, expected known simple value".into())),
