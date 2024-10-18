@@ -107,7 +107,9 @@ impl TryFrom<Title> for Header {
 
             Title(Major::Other, Minor::More) => Self::Break,
             Title(Major::Other, Minor::This(x)) => Self::Simple(x),
-            Title(Major::Other, Minor::Next1(x)) => Self::Simple(x[0]),
+            // Two-byte sequences for simple values below 32 are not considered well-formed
+            Title(Major::Other, Minor::Next1([0..=31])) => Err(InvalidError(()))?,
+            Title(Major::Other, Minor::Next1([x])) => Self::Simple(x),
             Title(Major::Other, Minor::Next2(x)) => Self::Float(f16::from_be_bytes(x).into()),
             Title(Major::Other, Minor::Next4(x)) => Self::Float(f32::from_be_bytes(x).into()),
             Title(Major::Other, Minor::Next8(x)) => Self::Float(f64::from_be_bytes(x)),
@@ -140,6 +142,11 @@ impl From<Header> for Title {
 
             Header::Simple(x) => match x {
                 x @ 0..=23 => Title(Major::Other, Minor::This(x)),
+                // Simple(24) is irrepresentable
+                // Simple(25) to Simple(27) are floats
+                // Simple(28) to Simple(30) are reserved
+                // Should this panic or error (i.e. use TryFrom instead of From) ?
+                // See: https://www.rfc-editor.org/rfc/rfc8949.html#section-3.3
                 x => Title(Major::Other, Minor::Next1([x])),
             },
 

@@ -115,10 +115,10 @@ fn eof() -> Error<std::io::Error> {
     case("fe", Error::Syntax(0)),
 
     // Reserved two-byte encodings of simple values:
-    case("f800", Error::Semantic(None, "invalid type: simple, expected known simple value".into())),
-    case("f801", Error::Semantic(None, "invalid type: simple, expected known simple value".into())),
-    case("f818", Error::Semantic(None, "invalid type: simple, expected known simple value".into())),
-    case("f81f", Error::Semantic(None, "invalid type: simple, expected known simple value".into())),
+    case("f800", Error::Syntax(0)),
+    case("f801", Error::Syntax(0)),
+    case("f818", Error::Syntax(0)),
+    case("f81f", Error::Syntax(0)),
 
     // Indefinite-length string chunks not of the correct type:
     case("5f00ff", Error::Syntax(1)),
