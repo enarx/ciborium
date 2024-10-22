@@ -10,6 +10,7 @@ mod error;
 mod ser;
 
 pub use canonical::CanonicalValue;
+use ciborium_ll::simple::{FALSE, NULL, TRUE, UNDEFINED};
 pub use error::Error;
 pub use integer::Integer;
 
@@ -45,6 +46,9 @@ pub enum Value {
 
     /// A map
     Map(Vec<(Value, Value)>),
+
+    /// A Simple Value
+    Simple(u8),
 }
 
 impl Value {
@@ -308,7 +312,9 @@ impl Value {
     /// ```
     pub fn as_bool(&self) -> Option<bool> {
         match *self {
-            Value::Bool(b) => Some(b),
+            Self::Bool(b) => Some(b),
+            Self::Simple(FALSE) => Some(false),
+            Self::Simple(TRUE) => Some(true),
             _ => None,
         }
     }
@@ -327,12 +333,14 @@ impl Value {
     /// ```
     pub fn into_bool(self) -> Result<bool, Self> {
         match self {
-            Value::Bool(b) => Ok(b),
+            Self::Bool(b) => Ok(b),
+            Self::Simple(FALSE) => Ok(false),
+            Self::Simple(TRUE) => Ok(true),
             other => Err(other),
         }
     }
 
-    /// Returns true if the `Value` is a `Null`. Returns false otherwise.
+    /// Returns true if the `Value` is a `Null` or `Undefined`. Returns false otherwise.
     ///
     /// ```
     /// # use ciborium::Value;
@@ -342,7 +350,10 @@ impl Value {
     /// assert!(value.is_null());
     /// ```
     pub fn is_null(&self) -> bool {
-        matches!(self, Value::Null)
+        matches!(
+            self,
+            Value::Null | Value::Simple(NULL) | Value::Simple(UNDEFINED)
+        )
     }
 
     /// Returns true if the `Value` is a `Tag`. Returns false otherwise.

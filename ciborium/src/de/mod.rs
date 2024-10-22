@@ -213,8 +213,11 @@ where
             Header::Simple(simple::FALSE) => self.deserialize_bool(visitor),
             Header::Simple(simple::TRUE) => self.deserialize_bool(visitor),
             Header::Simple(simple::NULL) => self.deserialize_option(visitor),
-            Header::Simple(simple::UNDEFINED) => self.deserialize_option(visitor),
-            h @ Header::Simple(..) => Err(h.expected("known simple value")),
+            Header::Simple(_) => self.recurse(|me| {
+                let mut simple_de =
+                    crate::simple::SimpleDeserializer::<_, Self>::new(&mut me.decoder);
+                visitor.visit_newtype_struct(&mut simple_de)
+            }),
 
             h @ Header::Break => Err(h.expected("non-break")),
         }
@@ -222,16 +225,10 @@ where
 
     #[inline]
     fn deserialize_bool<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        loop {
-            let offset = self.decoder.offset();
-
-            return match self.decoder.pull()? {
-                Header::Tag(..) => continue,
-                Header::Simple(simple::FALSE) => visitor.visit_bool(false),
-                Header::Simple(simple::TRUE) => visitor.visit_bool(true),
-                _ => Err(Error::semantic(offset, "expected bool")),
-            };
-        }
+        self.recurse(|me| {
+            let mut simple_de = crate::simple::SimpleDeserializer::<_, Self>::new(&mut me.decoder);
+            simple_de.deserialize_bool(visitor)
+        })
     }
 
     #[inline]

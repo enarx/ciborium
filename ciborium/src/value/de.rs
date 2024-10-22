@@ -7,7 +7,10 @@ use super::{Error, Integer, Value};
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::iter::Peekable;
 
-use ciborium_ll::tag;
+use ciborium_ll::{
+    simple::{FALSE, NULL, TRUE, UNDEFINED},
+    tag,
+};
 use serde::de::{self, Deserializer as _};
 
 impl<'a> From<Integer> for de::Unexpected<'a> {
@@ -28,14 +31,17 @@ impl<'a> From<&'a Value> for de::Unexpected<'a> {
     fn from(value: &'a Value) -> Self {
         match value {
             Value::Bool(x) => Self::Bool(*x),
+            Value::Simple(FALSE) => Self::Bool(false),
+            Value::Simple(TRUE) => Self::Bool(true),
             Value::Integer(x) => Self::from(*x),
             Value::Float(x) => Self::Float(*x),
             Value::Bytes(x) => Self::Bytes(x),
             Value::Text(x) => Self::Str(x),
             Value::Array(..) => Self::Seq,
             Value::Map(..) => Self::Map,
-            Value::Null => Self::Other("null"),
+            Value::Null | Value::Simple(NULL) => Self::Other("null"),
             Value::Tag(..) => Self::Other("tag"),
+            Value::Simple(_) => Self::Other("simple"),
         }
     }
 }
@@ -110,7 +116,21 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
         self,
         deserializer: D,
     ) -> Result<Self::Value, D::Error> {
-        deserializer.deserialize_any(self)
+        struct Inner;
+
+        impl<'de> serde::de::Visitor<'de> for Inner {
+            type Value = Value;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str("a simple value")
+            }
+
+            fn visit_u8<E>(self, v: u8) -> Result<Self::Value, E> {
+                Ok(Value::Simple(v))
+            }
+        }
+
+        deserializer.deserialize_any(Inner)
     }
 
     #[inline]
@@ -234,7 +254,9 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
             Value::Array(x) => visitor.visit_seq(Deserializer(x.iter())),
             Value::Map(x) => visitor.visit_map(Deserializer(x.iter().peekable())),
             Value::Bool(x) => visitor.visit_bool(*x),
-            Value::Null => visitor.visit_none(),
+            Value::Simple(FALSE) => visitor.visit_bool(false),
+            Value::Simple(TRUE) => visitor.visit_bool(true),
+            Value::Null | Value::Simple(NULL | UNDEFINED) => visitor.visit_none(),
 
             Value::Tag(t, v) => {
                 let parent: Deserializer<&Value> = Deserializer(v);
@@ -253,6 +275,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
             }
 
             Value::Float(x) => visitor.visit_f64(*x),
+            Value::Simple(_) => visitor.visit_newtype_struct(self),
         }
     }
 
@@ -446,7 +469,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
     #[inline]
     fn deserialize_option<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.0 {
-            Value::Null => visitor.visit_none(),
+            Value::Null | Value::Simple(NULL) => visitor.visit_none(),
             x => visitor.visit_some(Self(x)),
         }
     }
@@ -454,7 +477,7 @@ impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
     #[inline]
     fn deserialize_unit<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.0 {
-            Value::Null => visitor.visit_unit(),
+            Value::Null | Value::Simple(NULL) => visitor.visit_unit(),
             _ => Err(de::Error::invalid_type(self.0.into(), &"null")),
         }
     }
@@ -605,7 +628,7 @@ impl<'a, 'de> de::VariantAccess<'de> for Deserializer<&'a Value> {
     #[inline]
     fn unit_variant(self) -> Result<(), Self::Error> {
         match self.0 {
-            Value::Null => Ok(()),
+            Value::Null | Value::Simple(NULL) => Ok(()),
             _ => Err(de::Error::invalid_type(self.0.into(), &"unit")),
         }
     }

@@ -200,10 +200,16 @@ where
     #[inline]
     fn serialize_newtype_struct<U: ?Sized + ser::Serialize>(
         self,
-        _name: &'static str,
+        name: &'static str,
         value: &U,
     ) -> Result<(), Self::Error> {
-        value.serialize(self)
+        match name {
+            "@@SIMPLE@@" => match value.serialize(crate::simple::Serializer) {
+                Ok(x) => Ok(self.0.push(Header::Simple(x))?),
+                _ => Err(Error::Value("expected simple value".into())),
+            },
+            _ => value.serialize(self),
+        }
     }
 
     #[inline]

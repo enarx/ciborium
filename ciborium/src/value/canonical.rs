@@ -55,6 +55,7 @@ pub fn cmp_value(v1: &Value, v2: &Value) -> Ordering {
             },
             Some(x) => x,
         },
+        (Simple(s), Simple(o)) => s.cmp(o),
         (_, _) => serialized_canonical_cmp(v1, v2),
     }
 }
