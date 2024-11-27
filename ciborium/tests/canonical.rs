@@ -65,7 +65,7 @@ fn map_old() {
 
 /// Use length-first ordering for keys.
 #[test]
-#[cfg(feature = "std")]
+#[cfg(feature = "canonical")]
 fn map_rfc7049() {
     use ciborium::ser::CanonicalizationScheme;
 
@@ -79,10 +79,11 @@ fn map_rfc7049() {
     map.insert(cval!("z"), val!(4));
     map.insert(cval!("aa"), val!(6));
 
-    let bytes1 = ciborium::ser::to_vec_canonical(&map, CanonicalizationScheme::Rfc7049).unwrap();
+    let bytes1 =
+        ciborium::ser::to_vec_canonical(&map, Some(CanonicalizationScheme::Rfc7049)).unwrap();
 
     assert_eq!(
-        hex::encode(&bytes1),
+        hex::encode(bytes1),
         "a80a002001f402186403617a048120056261610681186407"
     );
 }
@@ -93,7 +94,7 @@ fn map_rfc7049() {
 ///
 /// [RFC 8949]: https://www.rfc-editor.org/rfc/rfc8949.html#name-core-deterministic-encoding
 #[test]
-#[cfg(feature = "std")]
+#[cfg(feature = "canonical")]
 fn map_rfc8949() {
     use ciborium::ser::CanonicalizationScheme;
 
@@ -107,10 +108,11 @@ fn map_rfc8949() {
     map.insert(cval!("z"), val!(4));
     map.insert(cval!("aa"), val!(6));
 
-    let bytes1 = ciborium::ser::to_vec_canonical(&map, CanonicalizationScheme::Rfc8049).unwrap();
+    let bytes1 =
+        ciborium::ser::to_vec_canonical(&map, Some(CanonicalizationScheme::Rfc8049)).unwrap();
 
     assert_eq!(
-        hex::encode(&bytes1),
+        hex::encode(bytes1),
         "a80a001864032001617a046261610681186407812005f402"
     );
 }

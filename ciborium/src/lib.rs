@@ -13,6 +13,13 @@
 //!
 //! For dynamic CBOR value creation/inspection, see [`Value`](crate::value::Value).
 //!
+//! # Features
+//! - `std`: enabled by default.
+//! - `canonical`: allows serializing with a `CanonicalizationScheme` for deterministic
+//!     outputs. Incurs a small performance penalty (~20% slower) when serializing
+//!     without a canonicalization scheme, and a large penalty (~100% slower) when
+//!     serializing with a canonicalization scheme.
+//!
 //! # Design Decisions
 //!
 //! ## Always Serialize Numeric Values to the Smallest Size
@@ -106,7 +113,16 @@ pub use crate::ser::{into_writer, Serializer};
 
 #[doc(inline)]
 #[cfg(feature = "std")]
-pub use crate::ser::{into_writer_canonical, to_vec, to_vec_canonical};
+pub use crate::ser::to_vec;
+
+#[doc(inline)]
+#[cfg(feature = "canonical")]
+pub use crate::ser::{into_writer_canonical, to_vec_canonical};
+
+#[cfg(feature = "std")]
+#[doc(inline)]
+#[deprecated(since = "0.3.0", note = "Please use `to_vec` instead")]
+pub use crate::ser::to_vec as into_vec;
 
 #[doc(inline)]
 pub use crate::value::Value;

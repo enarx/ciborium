@@ -18,6 +18,13 @@ passed to these functions just as streams can.
 
 For dynamic CBOR value creation/inspection, see [`Value`](crate::value::Value).
 
+## Features
+- `std`: enabled by default.
+- `canonical`: allows serializing with a `CanonicalizationScheme` for deterministic
+    outputs. Incurs a small performance penalty (~20% slower) when serializing
+    without a canonicalization scheme, and a large penalty (~100% slower) when
+    serializing with a canonicalization scheme.
+
 ## Design Decisions
 
 ### Always Serialize Numeric Values to the Smallest Size
