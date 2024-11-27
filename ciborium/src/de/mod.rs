@@ -786,6 +786,24 @@ where
 /// If you want to deserialize faster at the cost of more memory, consider using
 /// [`from_reader_with_buffer`](from_reader_with_buffer) with a larger buffer,
 /// for example 64KB.
+///
+/// # Example
+/// ```rust
+/// use ciborium::from_reader;
+///
+/// #[derive(Debug, serde::Deserialize, Eq, PartialEq)]
+/// struct Example {
+///     a: u64,
+///     aa: u64,
+///     b: u64,
+/// }
+///
+/// let cbor = hex::decode("a36161182a61621910686261611901a4").unwrap();
+/// let expected = Example { a: 42, aa: 420, b: 4200 };
+///
+/// let deserialized: Example = from_reader(cbor.as_slice()).unwrap();
+/// assert_eq!(deserialized, expected);
+/// ```
 #[inline]
 pub fn from_reader<T: de::DeserializeOwned, R: Read>(reader: R) -> Result<T, Error<R::Error>>
 where
@@ -798,6 +816,25 @@ where
 /// Deserializes as CBOR from a type with [`impl
 /// ciborium_io::Read`](ciborium_io::Read), using a caller-specific buffer as a
 /// temporary scratch space.
+///
+/// # Example
+/// ```rust
+/// use ciborium::from_reader_with_buffer;
+///
+/// #[derive(Debug, serde::Deserialize, Eq, PartialEq)]
+/// struct Example {
+///     a: u64,
+///     aa: u64,
+///     b: u64,
+/// }
+///
+/// let cbor = hex::decode("a36161182a61621910686261611901a4").unwrap();
+/// let expected = Example { a: 42, aa: 420, b: 4200 };
+///
+/// let mut scratch = [0; 8192];
+/// let deserialized: Example = from_reader_with_buffer(cbor.as_slice(), &mut scratch).unwrap();
+/// assert_eq!(deserialized, expected);
+/// ```
 #[inline]
 pub fn from_reader_with_buffer<T: de::DeserializeOwned, R: Read>(
     reader: R,
@@ -820,6 +857,24 @@ where
 /// will result in [`Error::RecursionLimitExceeded`] .
 ///
 /// Set a high recursion limit at your own risk (of stack exhaustion)!
+///
+/// # Example
+/// ```rust
+/// use ciborium::de::from_reader_with_recursion_limit;
+///
+/// #[derive(Debug, serde::Deserialize, Eq, PartialEq)]
+/// struct Example {
+///     a: u64,
+///     aa: u64,
+///     b: u64,
+/// }
+///
+/// let cbor = hex::decode("a36161182a61621910686261611901a4").unwrap();
+/// let expected = Example { a: 42, aa: 420, b: 4200 };
+///
+/// let deserialized: Example = from_reader_with_recursion_limit(cbor.as_slice(), 1024).unwrap();
+/// assert_eq!(deserialized, expected);
+/// ```
 #[inline]
 pub fn from_reader_with_recursion_limit<T: de::DeserializeOwned, R: Read>(
     reader: R,

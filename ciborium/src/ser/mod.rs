@@ -7,24 +7,114 @@ mod error;
 pub use error::Error;
 
 use alloc::string::ToString;
-
 use ciborium_io::Write;
 use ciborium_ll::*;
 use serde::{ser, Serialize as _};
 
-struct Serializer<W>(Encoder<W>);
+/// Which canonicalization scheme to use for CBOR serialization.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum CanonicalizationScheme {
+    /// No canonicalization, don't sort map keys. Faster and reduces allocations.
+    None,
+
+    /// Sort map keys in output according to [RFC 7049]'s deterministic encoding spec.
+    ///
+    /// Also aligns with [RFC 8949 4.2.3]'s backwards compatibility sort order.
+    ///
+    /// Uses length-first map key ordering. Eg. `["a", "b", "aa"]`.
+    #[cfg(feature = "std")]
+    Rfc7049,
+
+    /// Sort map keys in output according to [RFC 8949]'s deterministic encoding spec.
+    ///
+    /// Uses bytewise lexicographic map key ordering. Eg. `["a", "aa", "b"]`.
+    #[cfg(feature = "std")]
+    Rfc8049,
+}
+
+impl CanonicalizationScheme {
+    /// Does this canonicalization scheme require sorting of keys.
+    pub fn is_sorting(&self) -> bool {
+        #[cfg(feature = "std")] {
+            matches!(self, Self::Rfc7049 | Self::Rfc8049)
+        }
+
+        #[cfg(not(feature = "std"))] {
+            false
+        }
+    }
+}
+
+/// A serializer for CBOR.
+///
+/// # Example
+/// ```rust
+/// use serde::Serialize;
+/// use ciborium::Serializer;
+///
+/// #[derive(serde::Serialize)]
+/// struct Example {
+///     a: u64,
+///     aa: u64,
+///     b: u64,
+/// }
+///
+/// let example = Example { a: 42, aa: 420, b: 4200 };
+///
+/// let mut buffer = Vec::with_capacity(1024);
+///
+/// #[cfg(feature = "std")] {
+///     let mut serializer = Serializer::new(&mut buffer, ciborium::ser::CanonicalizationScheme::Rfc8049);
+///     example.serialize(&mut serializer).unwrap();
+///     assert_eq!(hex::encode(&buffer), "a36161182a61621910686261611901a4");
+/// }
+///
+/// #[cfg(not(feature = "std"))] {
+///     let mut serializer = Serializer::from(&mut buffer);  // uses no canonicalization
+///     example.serialize(&mut serializer).unwrap();
+///     assert_eq!(hex::encode(&buffer), "a36161182a6261611901a46162191068");
+/// }
+/// ```
+pub struct Serializer<W> {
+    encoder: Encoder<W>,
+
+    /// Whether to canonically sort map keys in output according a particular
+    /// [CanonicalizationScheme] map key sort ordering.
+    canonicalization: CanonicalizationScheme,
+}
+
+impl<W: Write> Serializer<W> {
+    /// Create a new CBOR serializer.
+    ///
+    /// `canonicalization` can be used to change the [CanonicalizationScheme] used for sorting
+    /// output map and struct keys to ensure deterministic outputs.
+    pub fn new(encoder: impl Into<Encoder<W>>, canonicalization: CanonicalizationScheme) -> Self {
+        Self {
+            encoder: encoder.into(),
+            canonicalization,
+        }
+    }
+}
 
 impl<W: Write> From<W> for Serializer<W> {
     #[inline]
     fn from(writer: W) -> Self {
-        Self(writer.into())
+        Self {
+            encoder: writer.into(),
+            #[cfg(feature = "std")]
+            canonicalization: CanonicalizationScheme::None,
+        }
     }
 }
 
 impl<W: Write> From<Encoder<W>> for Serializer<W> {
     #[inline]
     fn from(writer: Encoder<W>) -> Self {
-        Self(writer)
+        Self {
+            encoder: writer,
+            #[cfg(feature = "std")]
+            canonicalization: CanonicalizationScheme::None,
+        }
     }
 }
 
@@ -45,7 +135,7 @@ where
 
     #[inline]
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
-        Ok(self.0.push(match v {
+        Ok(self.encoder.push(match v {
             false => Header::Simple(simple::FALSE),
             true => Header::Simple(simple::TRUE),
         })?)
@@ -68,7 +158,7 @@ where
 
     #[inline]
     fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
-        Ok(self.0.push(match v.is_negative() {
+        Ok(self.encoder.push(match v.is_negative() {
             false => Header::Positive(v as u64),
             true => Header::Negative(v as u64 ^ !0),
         })?)
@@ -82,8 +172,8 @@ where
         };
 
         match (tag, u64::try_from(raw)) {
-            (tag::BIGPOS, Ok(x)) => return Ok(self.0.push(Header::Positive(x))?),
-            (tag::BIGNEG, Ok(x)) => return Ok(self.0.push(Header::Negative(x))?),
+            (tag::BIGPOS, Ok(x)) => return Ok(self.encoder.push(Header::Positive(x))?),
+            (tag::BIGNEG, Ok(x)) => return Ok(self.encoder.push(Header::Negative(x))?),
             _ => {}
         }
 
@@ -95,9 +185,9 @@ where
             slice = &slice[1..];
         }
 
-        self.0.push(Header::Tag(tag))?;
-        self.0.push(Header::Bytes(Some(slice.len())))?;
-        Ok(self.0.write_all(slice)?)
+        self.encoder.push(Header::Tag(tag))?;
+        self.encoder.push(Header::Bytes(Some(slice.len())))?;
+        Ok(self.encoder.write_all(slice)?)
     }
 
     #[inline]
@@ -117,7 +207,7 @@ where
 
     #[inline]
     fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
-        Ok(self.0.push(Header::Positive(v))?)
+        Ok(self.encoder.push(Header::Positive(v))?)
     }
 
     #[inline]
@@ -134,9 +224,9 @@ where
             slice = &slice[1..];
         }
 
-        self.0.push(Header::Tag(tag::BIGPOS))?;
-        self.0.push(Header::Bytes(Some(slice.len())))?;
-        Ok(self.0.write_all(slice)?)
+        self.encoder.push(Header::Tag(tag::BIGPOS))?;
+        self.encoder.push(Header::Bytes(Some(slice.len())))?;
+        Ok(self.encoder.write_all(slice)?)
     }
 
     #[inline]
@@ -146,7 +236,7 @@ where
 
     #[inline]
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-        Ok(self.0.push(Header::Float(v))?)
+        Ok(self.encoder.push(Header::Float(v))?)
     }
 
     #[inline]
@@ -157,19 +247,19 @@ where
     #[inline]
     fn serialize_str(self, v: &str) -> Result<(), Self::Error> {
         let bytes = v.as_bytes();
-        self.0.push(Header::Text(bytes.len().into()))?;
-        Ok(self.0.write_all(bytes)?)
+        self.encoder.push(Header::Text(bytes.len().into()))?;
+        Ok(self.encoder.write_all(bytes)?)
     }
 
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result<(), Self::Error> {
-        self.0.push(Header::Bytes(v.len().into()))?;
-        Ok(self.0.write_all(v)?)
+        self.encoder.push(Header::Bytes(v.len().into()))?;
+        Ok(self.encoder.write_all(v)?)
     }
 
     #[inline]
     fn serialize_none(self) -> Result<(), Self::Error> {
-        Ok(self.0.push(Header::Simple(simple::NULL))?)
+        Ok(self.encoder.push(Header::Simple(simple::NULL))?)
     }
 
     #[inline]
@@ -215,7 +305,7 @@ where
         value: &U,
     ) -> Result<(), Self::Error> {
         if name != "@@TAG@@" || variant != "@@UNTAGGED@@" {
-            self.0.push(Header::Map(Some(1)))?;
+            self.encoder.push(Header::Map(Some(1)))?;
             self.serialize_str(variant)?;
         }
 
@@ -224,12 +314,7 @@ where
 
     #[inline]
     fn serialize_seq(self, length: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        self.0.push(Header::Array(length))?;
-        Ok(CollectionSerializer {
-            encoder: self,
-            ending: length.is_none(),
-            tag: false,
-        })
+        CollectionSerializer::new(self, CollectionType::Array, length)
     }
 
     #[inline]
@@ -255,33 +340,19 @@ where
         length: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
         match (name, variant) {
-            ("@@TAG@@", "@@TAGGED@@") => Ok(CollectionSerializer {
-                encoder: self,
-                ending: false,
-                tag: true,
-            }),
+            ("@@TAG@@", "@@TAGGED@@") => CollectionSerializer::new(self, CollectionType::Tag, Some(length)),
 
             _ => {
-                self.0.push(Header::Map(Some(1)))?;
+                self.encoder.push(Header::Map(Some(1)))?;
                 self.serialize_str(variant)?;
-                self.0.push(Header::Array(Some(length)))?;
-                Ok(CollectionSerializer {
-                    encoder: self,
-                    ending: false,
-                    tag: false,
-                })
+                CollectionSerializer::new(self, CollectionType::Array, Some(length))
             }
         }
     }
 
     #[inline]
     fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        self.0.push(Header::Map(length))?;
-        Ok(CollectionSerializer {
-            encoder: self,
-            ending: length.is_none(),
-            tag: false,
-        })
+        CollectionSerializer::new(self, CollectionType::Map, length)
     }
 
     #[inline]
@@ -290,12 +361,7 @@ where
         _name: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        self.0.push(Header::Map(Some(length)))?;
-        Ok(CollectionSerializer {
-            encoder: self,
-            ending: false,
-            tag: false,
-        })
+        CollectionSerializer::new(self, CollectionType::Map, Some(length))
     }
 
     #[inline]
@@ -306,14 +372,9 @@ where
         variant: &'static str,
         length: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        self.0.push(Header::Map(Some(1)))?;
+        self.encoder.push(Header::Map(Some(1)))?;
         self.serialize_str(variant)?;
-        self.0.push(Header::Map(Some(length)))?;
-        Ok(CollectionSerializer {
-            encoder: self,
-            ending: false,
-            tag: false,
-        })
+        CollectionSerializer::new(self, CollectionType::Map, Some(length))
     }
 
     #[inline]
@@ -325,9 +386,18 @@ where
 macro_rules! end {
     () => {
         #[inline]
-        fn end(self) -> Result<(), Self::Error> {
-            if self.ending {
-                self.encoder.0.push(Header::Break)?;
+        fn end(mut self) -> Result<(), Self::Error> {
+            if self.serializer.canonicalization.is_sorting() {
+                // Canonical serialization holds back writing headers, as it doesn't allow
+                // indefinite length structs. This allows us to always compute the length.
+                self.push_header(Some(self.cache_values.len()))?;
+
+                for value in self.cache_values.iter() {
+                    self.serializer.encoder.write_all(&value)?;
+                }
+            } else if self.length.is_none() {
+                // Not canonical and no length => indefinite length break.
+                self.serializer.encoder.push(Header::Break)?;
             }
 
             Ok(())
@@ -335,10 +405,147 @@ macro_rules! end {
     };
 }
 
-struct CollectionSerializer<'a, W> {
-    encoder: &'a mut Serializer<W>,
-    ending: bool,
-    tag: bool,
+macro_rules! end_map {
+    () => {
+        #[inline]
+        fn end(mut self) -> Result<(), Self::Error> {
+            if self.serializer.canonicalization.is_sorting() {
+                // Canonical serialization holds back writing headers, as it doesn't allow
+                // indefinite length structs. This allows us to always compute the length.
+                self.push_header(Some(self.cache_keys.len()))?;
+            }
+
+            // Sort our cached output and write it to the encoder.
+            match self.serializer.canonicalization {
+                CanonicalizationScheme::None => {}
+                #[cfg(feature = "std")]
+                CanonicalizationScheme::Rfc8049 => {
+                    // keys get sorted in lexicographical byte order
+                    let keys = self.cache_keys;
+                    let values = self.cache_values;
+
+                    debug_assert_eq!(
+                        keys.len(), values.len(),
+                        "ciborium error: canonicalization failed, different number of keys and values?");
+
+                    let mut pairs: Vec<_> =
+                        keys.iter().zip(values.iter()).collect();
+
+                    pairs.sort();
+
+                    for (key, value) in pairs.iter() {
+                        self.serializer.encoder.write_all(&key)?;
+                        self.serializer.encoder.write_all(&value)?;
+                    }
+                }
+                #[cfg(feature = "std")]
+                CanonicalizationScheme::Rfc7049 => {
+                    // keys get sorted in length-first byte order
+                    let keys = self.cache_keys;
+                    let values = self.cache_values;
+
+                    debug_assert_eq!(
+                        keys.len(), values.len(),
+                        "ciborium error: canonicalization failed, different number of keys and values?");
+
+                    let mut pairs: Vec<_> =
+                        keys.iter()
+                            .map(|key| (key.len(), key))  // length-first ordering
+                            .zip(values.iter())
+                            .collect();
+
+                    pairs.sort();
+
+                    for ((_, key), value) in pairs.iter() {
+                        self.serializer.encoder.write_all(&key)?;
+                        self.serializer.encoder.write_all(&value)?;
+                    }
+                }
+            }
+
+            if self.length.is_none() && !self.serializer.canonicalization.is_sorting() {
+                // Not canonical and no length => indefinite length break.
+                self.serializer.encoder.push(Header::Break)?;
+            }
+
+            Ok(())
+        }
+    };
+}
+
+/// The type of collection being serialized.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum CollectionType {
+    Array,
+    Map,
+
+    /// Tags write headers differently, see `SerializeTupleVariant::serialize_field`.
+    Tag,
+}
+
+/// An internal struct for serializing collections.
+///
+/// Not to be used externally, only exposed as part of the [Serializer] type.
+#[doc(hidden)]
+pub struct CollectionSerializer<'a, W> {
+    serializer: &'a mut Serializer<W>,
+    collection_type: CollectionType,
+
+    /// None if the collection is indefinite length. Canonical serialization will ignore this.
+    length: Option<usize>,
+
+    /// First serialized value is the tag header, use this to track whether said tag header has
+    /// been written yet. Only relevant for tag collections.
+    tag_written: bool,
+
+    #[cfg(feature = "std")]
+    cache_keys: Vec<Vec<u8>>,
+    #[cfg(feature = "std")]
+    cache_values: Vec<Vec<u8>>,
+}
+
+impl<'a, W: Write> CollectionSerializer<'a, W>
+where
+    W::Error: core::fmt::Debug,
+{
+    #[inline]
+    fn new(
+        serializer: &'a mut Serializer<W>,
+        collection_type: CollectionType,
+        length: Option<usize>,
+    ) -> Result<Self, Error<W::Error>> {
+        let mut collection_serializer = Self {
+            serializer,
+            collection_type,
+            length,
+            tag_written: false,
+            #[cfg(feature = "std")]
+            cache_keys: Vec::with_capacity(0),
+            #[cfg(feature = "std")]
+            cache_values: Vec::with_capacity(0),
+        };
+
+        if !collection_serializer.serializer.canonicalization.is_sorting() {
+            collection_serializer.push_header(length)?;
+        }
+
+        Ok(collection_serializer)
+    }
+
+    #[inline]
+    fn push_header(&mut self, length: Option<usize>) -> Result<(), Error<W::Error>> {
+        match self.collection_type {
+            CollectionType::Array => {
+                Ok(self.serializer.encoder.push(Header::Array(length))?)
+            }
+            CollectionType::Map => {
+                Ok(self.serializer.encoder.push(Header::Map(length))?)
+            }
+            // tag headers are always written directly in SerializeTupleVariant::serialize_field
+            // as they don't contain a potentially unknown length
+            CollectionType::Tag => Ok(()),
+        }
+    }
 }
 
 impl<'a, W: Write> ser::SerializeSeq for CollectionSerializer<'a, W>
@@ -353,7 +560,15 @@ where
         &mut self,
         value: &U,
     ) -> Result<(), Self::Error> {
-        value.serialize(&mut *self.encoder)
+        #[cfg(feature = "std")]
+        if self.serializer.canonicalization.is_sorting() {
+            let value_bytes = to_vec_small(value, self.serializer.canonicalization)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            self.cache_values.push(value_bytes);
+            return Ok(());
+        }
+
+        value.serialize(&mut *self.serializer)
     }
 
     end!();
@@ -371,7 +586,15 @@ where
         &mut self,
         value: &U,
     ) -> Result<(), Self::Error> {
-        value.serialize(&mut *self.encoder)
+        #[cfg(feature = "std")]
+        if self.serializer.canonicalization.is_sorting() {
+            let value_bytes = to_vec_small(value, self.serializer.canonicalization)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            self.cache_values.push(value_bytes);
+            return Ok(());
+        }
+
+        value.serialize(&mut *self.serializer)
     }
 
     end!();
@@ -389,7 +612,15 @@ where
         &mut self,
         value: &U,
     ) -> Result<(), Self::Error> {
-        value.serialize(&mut *self.encoder)
+        #[cfg(feature = "std")]
+        if self.serializer.canonicalization.is_sorting() {
+            let value_bytes = to_vec_small(value, self.serializer.canonicalization)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            self.cache_values.push(value_bytes);
+            return Ok(());
+        }
+
+        value.serialize(&mut *self.serializer)
     }
 
     end!();
@@ -407,13 +638,22 @@ where
         &mut self,
         value: &U,
     ) -> Result<(), Self::Error> {
-        if !self.tag {
-            return value.serialize(&mut *self.encoder);
+        if self.tag_written || !matches!(self.collection_type, CollectionType::Tag) {
+            #[cfg(feature = "std")]
+            if self.serializer.canonicalization.is_sorting() {
+                let value_bytes = to_vec_small(value, self.serializer.canonicalization)
+                    .map_err(|e| Error::Value(e.to_string()))?;
+                self.cache_values.push(value_bytes);
+                return Ok(());
+            }
+
+            return value.serialize(&mut *self.serializer);
         }
 
-        self.tag = false;
+        self.tag_written = true;
         match value.serialize(crate::tag::Serializer) {
-            Ok(x) => Ok(self.encoder.0.push(Header::Tag(x))?),
+            // safe to push the tag header when canonicalizing
+            Ok(x) => Ok(self.serializer.encoder.push(Header::Tag(x))?),
             _ => Err(Error::Value("expected tag".into())),
         }
     }
@@ -430,7 +670,14 @@ where
 
     #[inline]
     fn serialize_key<U: ?Sized + ser::Serialize>(&mut self, key: &U) -> Result<(), Self::Error> {
-        key.serialize(&mut *self.encoder)
+        if self.serializer.canonicalization.is_sorting() {
+            let key_bytes = to_vec_small(key, self.serializer.canonicalization)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            self.cache_keys.push(key_bytes);
+            return Ok(());
+        }
+
+        key.serialize(&mut *self.serializer)
     }
 
     #[inline]
@@ -438,10 +685,18 @@ where
         &mut self,
         value: &U,
     ) -> Result<(), Self::Error> {
-        value.serialize(&mut *self.encoder)
+        #[cfg(feature = "std")]
+        if self.serializer.canonicalization.is_sorting() {
+            let value_bytes = to_vec_small(value, self.serializer.canonicalization)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            self.cache_values.push(value_bytes);
+            return Ok(());
+        }
+
+        value.serialize(&mut *self.serializer)
     }
 
-    end!();
+    end_map!();
 }
 
 impl<'a, W: Write> ser::SerializeStruct for CollectionSerializer<'a, W>
@@ -457,12 +712,23 @@ where
         key: &'static str,
         value: &U,
     ) -> Result<(), Self::Error> {
-        key.serialize(&mut *self.encoder)?;
-        value.serialize(&mut *self.encoder)?;
+        #[cfg(feature = "std")]
+        if self.serializer.canonicalization.is_sorting() {
+            let key_bytes = to_vec_small(key, self.serializer.canonicalization)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            self.cache_keys.push(key_bytes);
+            let value_bytes = to_vec_small(value, self.serializer.canonicalization)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            self.cache_values.push(value_bytes);
+            return Ok(());
+        }
+
+        key.serialize(&mut *self.serializer)?;
+        value.serialize(&mut *self.serializer)?;
         Ok(())
     }
 
-    end!();
+    end_map!();
 }
 
 impl<'a, W: Write> ser::SerializeStructVariant for CollectionSerializer<'a, W>
@@ -478,14 +744,121 @@ where
         key: &'static str,
         value: &U,
     ) -> Result<(), Self::Error> {
-        key.serialize(&mut *self.encoder)?;
-        value.serialize(&mut *self.encoder)
+        #[cfg(feature = "std")]
+        if self.serializer.canonicalization.is_sorting() {
+            let key_bytes = to_vec_small(key, self.serializer.canonicalization)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            self.cache_keys.push(key_bytes);
+            let value_bytes = to_vec_small(value, self.serializer.canonicalization)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            self.cache_values.push(value_bytes);
+            return Ok(());
+        }
+
+        key.serialize(&mut *self.serializer)?;
+        value.serialize(&mut *self.serializer)?;
+        Ok(())
     }
 
-    end!();
+    end_map!();
+}
+
+/// Internal method for serializing individual keys/values for canonicalization.
+///
+/// Uses a smaller Vec buffer, as we are expecting smaller keys/values to be serialized.
+///
+/// We use a very small buffer (2 words) to ensure it's cheap to initialize the Vec. Often the keys
+/// and values may only be a couple bytes long such as with integer values. Some kind of type length
+/// hint could help in the future, or perhaps using a smallvec crate too.
+#[inline]
+pub fn to_vec_small<T: ?Sized + ser::Serialize>(
+    value: &T,
+    canonicalization_scheme: CanonicalizationScheme,
+) -> Result<Vec<u8>, Error<std::io::Error>> {
+    let mut buffer = std::vec::Vec::with_capacity(16);
+    let mut serializer = Serializer::new(&mut buffer, canonicalization_scheme);
+    value.serialize(&mut serializer)?;
+    Ok(buffer)
+}
+
+/// Serializes as CBOR into `Vec<u8>`.
+///
+/// # Example
+/// ```rust
+/// use ciborium::to_vec;
+///
+/// #[derive(serde::Serialize)]
+/// struct Example {
+///     a: u64,
+///     aa: u64,
+///     b: u64,
+/// }
+///
+/// let example = Example { a: 42, aa: 420, b: 4200 };
+/// let bytes = to_vec(&example).unwrap();
+///
+/// assert_eq!(hex::encode(&bytes), "a36161182a6261611901a46162191068");
+/// ```
+#[cfg(feature = "std")]
+#[inline]
+pub fn to_vec<T: ?Sized + ser::Serialize>(value: &T) -> Result<Vec<u8>, Error<std::io::Error>> {
+    let mut buffer = std::vec::Vec::with_capacity(128);
+    let mut serializer = Serializer::new(&mut buffer, CanonicalizationScheme::None);
+    value.serialize(&mut serializer)?;
+    Ok(buffer)
+}
+
+/// Canonically serializes as CBOR into `Vec<u8>` with a specified [CanonicalizationScheme].
+///
+/// # Example
+/// ```rust
+/// use ciborium::to_vec_canonical;
+/// use ciborium::ser::CanonicalizationScheme;
+///
+/// #[derive(serde::Serialize)]
+/// struct Example {
+///     a: u64,
+///     aa: u64,
+///     b: u64,
+/// }
+///
+/// let example = Example { a: 42, aa: 420, b: 4200 };
+/// let bytes = to_vec_canonical(&example, CanonicalizationScheme::Rfc8049).unwrap();
+///
+/// assert_eq!(hex::encode(&bytes), "a36161182a61621910686261611901a4");
+/// ```
+#[cfg(feature = "std")]
+#[inline]
+pub fn to_vec_canonical<T: ?Sized + ser::Serialize>(
+    value: &T,
+    scheme: CanonicalizationScheme,
+) -> Result<Vec<u8>, Error<std::io::Error>> {
+    let mut buffer = std::vec::Vec::with_capacity(128);
+    let mut serializer = Serializer::new(&mut buffer, scheme);
+    value.serialize(&mut serializer)?;
+    Ok(buffer)
 }
 
 /// Serializes as CBOR into a type with [`impl ciborium_io::Write`](ciborium_io::Write)
+///
+/// # Example
+/// ```rust
+/// use ciborium::into_writer;
+///
+/// #[derive(serde::Serialize)]
+/// struct Example {
+///     a: u64,
+///     aa: u64,
+///     b: u64,
+/// }
+///
+/// let example = Example { a: 42, aa: 420, b: 4200 };
+///
+/// let mut bytes = Vec::new();
+/// into_writer(&example, &mut bytes).unwrap();
+///
+/// assert_eq!(hex::encode(&bytes), "a36161182a6261611901a46162191068");
+/// ```
 #[inline]
 pub fn into_writer<T: ?Sized + ser::Serialize, W: Write>(
     value: &T,
@@ -495,5 +868,42 @@ where
     W::Error: core::fmt::Debug,
 {
     let mut encoder = Serializer::from(writer);
+    value.serialize(&mut encoder)
+}
+
+/// Canonically serializes as CBOR into a type with [`impl ciborium_io::Write`](ciborium_io::Write)
+///
+/// This will sort map keys in output according to a specified [CanonicalizationScheme].
+///
+/// # Example
+/// ```rust
+/// use ciborium::into_writer_canonical;
+/// use ciborium::ser::CanonicalizationScheme;
+///
+/// #[derive(serde::Serialize)]
+/// struct Example {
+///     a: u64,
+///     aa: u64,
+///     b: u64,
+/// }
+///
+/// let example = Example { a: 42, aa: 420, b: 4200 };
+///
+/// let mut bytes = Vec::new();
+/// into_writer_canonical(&example, &mut bytes, CanonicalizationScheme::Rfc8049).unwrap();
+///
+/// assert_eq!(hex::encode(&bytes), "a36161182a61621910686261611901a4");
+/// ```
+#[cfg(feature = "std")]
+#[inline]
+pub fn into_writer_canonical<T: ?Sized + ser::Serialize, W: Write>(
+    value: &T,
+    writer: W,
+    scheme: CanonicalizationScheme,
+) -> Result<(), Error<W::Error>>
+where
+    W::Error: core::fmt::Debug,
+{
+    let mut encoder = Serializer::new(writer, scheme);
     value.serialize(&mut encoder)
 }

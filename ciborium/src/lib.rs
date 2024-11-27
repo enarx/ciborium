@@ -99,12 +99,14 @@ pub mod value;
 
 // Re-export the [items recommended by serde](https://serde.rs/conventions.html).
 #[doc(inline)]
-pub use crate::de::from_reader;
-#[doc(inline)]
-pub use crate::de::from_reader_with_buffer;
+pub use crate::de::{from_reader, from_reader_with_buffer, Deserializer};
 
 #[doc(inline)]
-pub use crate::ser::into_writer;
+pub use crate::ser::{into_writer, Serializer};
+
+#[doc(inline)]
+#[cfg(feature = "std")]
+pub use crate::ser::{into_writer_canonical, to_vec, to_vec_canonical};
 
 #[doc(inline)]
 pub use crate::value::Value;
