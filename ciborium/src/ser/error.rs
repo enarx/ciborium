@@ -10,7 +10,7 @@ use serde::ser::{Error as SerError, StdError};
 pub enum Error<T> {
     /// An error occurred while writing bytes
     ///
-    /// Contains the underlying error reaturned while writing.
+    /// Contains the underlying error returned while writing.
     Io(T),
 
     /// An error indicating a value that cannot be serialized
