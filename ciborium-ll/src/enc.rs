@@ -18,10 +18,12 @@ impl<W: Write> From<W> for Encoder<W> {
 impl<W: Write> Write for Encoder<W> {
     type Error = W::Error;
 
+    #[inline]
     fn write_all(&mut self, data: &[u8]) -> Result<(), Self::Error> {
         self.0.write_all(data)
     }
 
+    #[inline]
     fn flush(&mut self) -> Result<(), Self::Error> {
         self.0.flush()
     }
@@ -29,12 +31,13 @@ impl<W: Write> Write for Encoder<W> {
 
 impl<W: Write> Encoder<W> {
     /// Unwraps the `Write`, consuming the `Encoder`.
+    #[inline]
     pub fn into_inner(self) -> W {
         self.0
     }
 
     /// Push a `Header` to the wire
-    #[inline]
+    #[inline(always)]
     pub fn push(&mut self, header: Header) -> Result<(), W::Error> {
         let title = Title::from(header);
 
