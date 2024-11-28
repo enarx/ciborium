@@ -34,7 +34,6 @@ hex = "0.4"
 [features]
 default = ["std"]
 std = ["ciborium-io/std", "serde/std"]
-canonical = ["std"]
 
 [package.metadata.docs.rs]
 all-features = true
