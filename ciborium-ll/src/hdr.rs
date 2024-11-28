@@ -75,6 +75,7 @@ pub enum Header {
 impl TryFrom<Title> for Header {
     type Error = InvalidError;
 
+    #[inline]
     fn try_from(title: Title) -> Result<Self, Self::Error> {
         let opt = |minor| {
             Some(match minor {
@@ -116,6 +117,7 @@ impl TryFrom<Title> for Header {
 }
 
 impl From<Header> for Title {
+    #[inline(always)]
     fn from(header: Header) -> Self {
         let int = |i: u64| match i {
             x if x <= 23 => Minor::This(i as u8),
