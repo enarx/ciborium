@@ -214,7 +214,16 @@ where
         variant: &'static str,
         value: &U,
     ) -> Result<(), Self::Error> {
-        if name != "@@TAG@@" || variant != "@@UNTAGGED@@" {
+        if name == "@@ST@@" && variant == "@@SIMPLETYPE@@" {
+            use serde::ser::Error as _;
+
+            let v = crate::Value::serialized(value).map_err(Error::custom)?;
+            let v = v
+                .as_integer()
+                .ok_or_else(|| Error::custom("Internal error handling simple types"))?;
+            let v = u8::try_from(v).map_err(Error::custom)?;
+            return Ok(self.0.push(Header::Simple(v))?);
+        } else if name != "@@TAG@@" || variant != "@@UNTAGGED@@" {
             self.0.push(Header::Map(Some(1)))?;
             self.serialize_str(variant)?;
         }

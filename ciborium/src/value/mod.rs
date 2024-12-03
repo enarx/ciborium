@@ -45,6 +45,9 @@ pub enum Value {
 
     /// A map
     Map(Vec<(Value, Value)>),
+
+    /// A CBOR "Simple Value" other than true, false, or null
+    Simple(u8),
 }
 
 impl Value {
