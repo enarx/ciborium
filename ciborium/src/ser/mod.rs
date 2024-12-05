@@ -738,7 +738,7 @@ where
 fn to_vec_small<T: ?Sized + ser::Serialize, C: Canonicalization>(
     value: &T,
 ) -> Result<Vec<u8>, Error<std::io::Error>> {
-    let mut buffer = Vec::with_capacity(256);
+    let mut buffer = Vec::with_capacity(32);
     let mut serializer: Serializer<_, C> = Serializer::new(&mut buffer);
     value.serialize(&mut serializer)?;
     Ok(buffer)
@@ -765,7 +765,7 @@ fn to_vec_small<T: ?Sized + ser::Serialize, C: Canonicalization>(
 #[cfg(feature = "std")]
 #[inline]
 pub fn to_vec<T: ?Sized + ser::Serialize>(value: &T) -> Result<Vec<u8>, Error<std::io::Error>> {
-    let mut buffer = Vec::with_capacity(1024);
+    let mut buffer = Vec::with_capacity(128);
     let mut serializer: Serializer<_, NoCanonicalization> = Serializer::new(&mut buffer);
     value.serialize(&mut serializer)?;
     Ok(buffer)
@@ -795,7 +795,7 @@ pub fn to_vec<T: ?Sized + ser::Serialize>(value: &T) -> Result<Vec<u8>, Error<st
 pub fn to_vec_canonical<T: ?Sized + ser::Serialize, C: Canonicalization>(
     value: &T,
 ) -> Result<Vec<u8>, Error<std::io::Error>> {
-    let mut buffer = Vec::with_capacity(1024);
+    let mut buffer = Vec::with_capacity(128);
     let mut serializer: Serializer<_, C> = Serializer::new(&mut buffer);
     value.serialize(&mut serializer)?;
     Ok(buffer)
