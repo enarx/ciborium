@@ -133,10 +133,6 @@ pub use crate::ser::{into_writer_canonical, to_vec, to_vec_canonical};
 #[deprecated(since = "0.3.0", note = "Please use `to_vec` instead")]
 pub use crate::ser::to_vec as into_vec;
 
-#[cfg(feature = "std")]
-#[doc(inline)]
-pub use crate::ser::into_vec;
-
 #[doc(inline)]
 pub use crate::value::Value;
 
