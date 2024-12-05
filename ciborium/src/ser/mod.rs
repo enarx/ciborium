@@ -508,7 +508,7 @@ where
             serializer,
             collection_type,
             length,
-            tag_written: false,
+            tag_written: !matches!(collection_type, CollectionType::Tag),
             #[cfg(feature = "std")]
             cache_keys: Vec::new(),
             #[cfg(feature = "std")]
@@ -645,7 +645,7 @@ where
         &mut self,
         value: &U,
     ) -> Result<(), Self::Error> {
-        if self.tag_written || !matches!(self.collection_type, CollectionType::Tag) {
+        if self.tag_written {
             // untagged tuples are CollectionType::Array to skip writing the tag header
             return self.inline_serialize_value(value);
         }
