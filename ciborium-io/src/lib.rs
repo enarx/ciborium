@@ -152,6 +152,19 @@ impl Write for &mut [u8] {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl Read for &mut [u8] {
+    type Error = EndOfFile;
+
+    #[inline]
+    fn read_exact(&mut self, data: &mut [u8]) -> Result<(), Self::Error> {
+        let mut immutable: &[u8] = self;
+        immutable.read_exact(data)?;
+        *self = &mut core::mem::take(self)[data.len()..];
+        Ok(())
+    }
+}
+
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
 impl Write for alloc::vec::Vec<u8> {
     type Error = core::convert::Infallible;
@@ -194,6 +207,20 @@ mod test {
     #[test]
     fn read_two() {
         let mut reader = &[1u8; 2][..];
+        let mut buffer = [0u8; 1];
+
+        reader.read_exact(&mut buffer[..]).unwrap();
+        assert_eq!(buffer[0], 1);
+
+        reader.read_exact(&mut buffer[..]).unwrap();
+        assert_eq!(buffer[0], 1);
+
+        reader.read_exact(&mut buffer[..]).unwrap_err();
+    }
+
+    #[test]
+    fn read_mut_two() {
+        let mut reader = &mut [1u8; 2][..];
         let mut buffer = [0u8; 1];
 
         reader.read_exact(&mut buffer[..]).unwrap();
