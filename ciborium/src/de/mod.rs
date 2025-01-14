@@ -8,7 +8,7 @@ pub use error::Error;
 
 use alloc::{string::String, vec::Vec};
 
-use ciborium_io::Read;
+use ciborium_io::{eof, Read};
 use ciborium_ll::*;
 use serde::de::{self, value::BytesDeserializer, Deserializer as _};
 
@@ -47,6 +47,77 @@ impl<E: de::Error> Expected<E> for Header {
     }
 }
 
+enum Reference<'b, 'c, T: ?Sized + 'static> {
+    Borrowed(&'b T),
+    Copied(&'c T),
+}
+
+trait ReadSlice<'de>: Read {
+    fn read_slice<'a>(&'a mut self, len: usize) -> Result<Reference<'de, 'a, [u8]>, Self::Error>;
+}
+
+/// TODO
+pub struct Reader<R> {
+    r: R,
+    buf: Vec<u8>,
+}
+
+impl<R> Reader<R> {
+    fn new(r: R) -> Self {
+        Self {
+            r,
+            buf: Vec::with_capacity(128),
+        }
+    }
+}
+
+impl<R: Read> Read for Reader<R> {
+    type Error = R::Error;
+
+    fn read_exact(&mut self, data: &mut [u8]) -> Result<(), Self::Error> {
+        self.r.read_exact(data)
+    }
+}
+
+impl<'de, R: Read> ReadSlice<'de> for Reader<R> {
+    fn read_slice<'a>(&'a mut self, len: usize) -> Result<Reference<'de, 'a, [u8]>, Self::Error> {
+        self.buf.resize(len, 0);
+        self.r.read_exact(&mut self.buf)?;
+        Ok(Reference::Copied(&self.buf[..]))
+    }
+}
+
+/// TODO
+pub struct SliceReader<'de> {
+    _slice: &'de [u8],
+    buf: &'de [u8],
+}
+
+impl<'de> SliceReader<'de> {
+    fn new(r: &'de [u8]) -> Self {
+        Self { _slice: r, buf: r }
+    }
+}
+
+impl<'de> Read for SliceReader<'de> {
+    type Error = <&'de [u8] as ciborium_io::Read>::Error;
+
+    fn read_exact(&mut self, data: &mut [u8]) -> Result<(), Self::Error> {
+        self.buf.read_exact(data)
+    }
+}
+
+impl<'de> ReadSlice<'de> for SliceReader<'de> {
+    fn read_slice<'a>(&'a mut self, len: usize) -> Result<Reference<'de, 'a, [u8]>, Self::Error> {
+        if len > self.buf.len() {
+            return Err(eof());
+        }
+        let (a, b) = self.buf.split_at(len);
+        self.buf = b;
+        Ok(Reference::Borrowed(a))
+    }
+}
+
 /// Deserializer
 pub struct Deserializer<'b, R> {
     decoder: Decoder<R>,
@@ -54,7 +125,25 @@ pub struct Deserializer<'b, R> {
     recurse: usize,
 }
 
-fn noop(_: u8) {}
+impl<'a, R: Read> Deserializer<'a, Reader<R>> {
+    fn from_reader(r: R, scratch: &'a mut [u8], recurse: usize) -> Self {
+        Self {
+            decoder: Reader::new(r).into(),
+            scratch,
+            recurse,
+        }
+    }
+}
+
+impl<'a, 'de> Deserializer<'a, SliceReader<'de>> {
+    fn from_slice(s: &'de [u8], scratch: &'a mut [u8], recurse: usize) -> Self {
+        Self {
+            decoder: SliceReader::new(s).into(),
+            scratch,
+            recurse,
+        }
+    }
+}
 
 impl<'a, R: Read> Deserializer<'a, R>
 where
@@ -146,6 +235,8 @@ where
         }
     }
 }
+
+fn noop(_: u8) {}
 
 impl<'de, 'a, 'b, R: Read> de::Deserializer<'de> for &'a mut Deserializer<'b, R>
 where
@@ -806,11 +897,7 @@ pub fn from_reader_with_buffer<T: de::DeserializeOwned, R: Read>(
 where
     R::Error: core::fmt::Debug,
 {
-    let mut reader = Deserializer {
-        decoder: reader.into(),
-        scratch: scratch_buffer,
-        recurse: 256,
-    };
+    let mut reader = Deserializer::from_reader(reader, scratch_buffer, 256);
 
     T::deserialize(&mut reader)
 }
@@ -830,11 +917,7 @@ where
 {
     let mut scratch = [0; 4096];
 
-    let mut reader = Deserializer {
-        decoder: reader.into(),
-        scratch: &mut scratch,
-        recurse: recurse_limit,
-    };
+    let mut reader = Deserializer::from_reader(reader, &mut scratch, recurse_limit);
 
     T::deserialize(&mut reader)
 }
@@ -844,15 +927,11 @@ where
 pub fn deserializer_from_reader_with_buffer<R: Read>(
     reader: R,
     scratch_buffer: &mut [u8],
-) -> Deserializer<'_, R>
+) -> Deserializer<'_, Reader<R>>
 where
     R::Error: core::fmt::Debug,
 {
-    Deserializer {
-        decoder: reader.into(),
-        scratch: scratch_buffer,
-        recurse: 256,
-    }
+    Deserializer::from_reader(reader, scratch_buffer, 256)
 }
 
 /// Returns a deserializer with a specified scratch buffer
@@ -865,13 +944,42 @@ pub fn deserializer_from_reader_with_buffer_and_recursion_limit<R: Read>(
     reader: R,
     scratch_buffer: &mut [u8],
     recurse_limit: usize,
-) -> Deserializer<'_, R>
+) -> Deserializer<'_, Reader<R>>
 where
     R::Error: core::fmt::Debug,
 {
-    Deserializer {
-        decoder: reader.into(),
-        scratch: scratch_buffer,
-        recurse: recurse_limit,
-    }
+    Deserializer::from_reader(reader, scratch_buffer, recurse_limit)
+}
+
+/// Deserializes as CBOR from a type with [`impl
+/// ciborium_io::Read`](ciborium_io::Read) using a 4KB buffer on the stack.
+///
+/// If you want to deserialize faster at the cost of more memory, consider using
+/// [`from_reader_with_buffer`](from_reader_with_buffer) with a larger buffer,
+/// for example 64KB.
+#[inline]
+pub fn from_slice<'de, T: de::Deserialize<'de>>(
+    reader: &'de [u8],
+) -> Result<T, Error<<&'de [u8] as ciborium_io::Read>::Error>>
+where
+    <&'de [u8] as ciborium_io::Read>::Error: core::fmt::Debug,
+{
+    let mut scratch = [0; 4096];
+    from_slice_with_buffer(reader, &mut scratch)
+}
+
+/// Deserializes as CBOR from a type with [`impl
+/// ciborium_io::Read`](ciborium_io::Read), using a caller-specific buffer as a
+/// temporary scratch space.
+#[inline]
+pub fn from_slice_with_buffer<'de, T: de::Deserialize<'de>>(
+    reader: &'de [u8],
+    scratch_buffer: &mut [u8],
+) -> Result<T, Error<<&'de [u8] as ciborium_io::Read>::Error>>
+where
+    <&'de [u8] as ciborium_io::Read>::Error: core::fmt::Debug,
+{
+    let mut reader = Deserializer::from_slice(reader, scratch_buffer, 256);
+
+    T::deserialize(&mut reader)
 }
