@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::value::Value;
-use alloc::vec::Vec;
+use alloc::{boxed::Box, string::ToString, vec::Vec};
+use ciborium_io::Write;
 use core::cmp::Ordering;
 use serde::{de, ser};
+
+use crate::value::Value;
 
 /// Manually serialize values to compare them.
 fn serialized_canonical_cmp(v1: &Value, v2: &Value) -> Ordering {
@@ -121,4 +123,64 @@ impl PartialOrd for CanonicalValue {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
+}
+
+/// Recursively convert a Value to its canonical form as defined in RFC 8949 "core deterministic encoding requirements".
+pub fn canonical_value(value: Value) -> Value {
+    match value {
+        Value::Map(entries) => {
+            let mut canonical_entries: Vec<(Value, Value)> = entries
+                .into_iter()
+                .map(|(k, v)| (canonical_value(k), canonical_value(v)))
+                .collect();
+
+            // Sort entries based on the canonical comparison of their keys.
+            // cmp_value (defined in this file) implements RFC 8949 key sorting.
+            canonical_entries.sort_by(|(k1, _), (k2, _)| cmp_value(k1, k2));
+
+            Value::Map(canonical_entries)
+        }
+        Value::Array(elements) => {
+            let canonical_elements: Vec<Value> =
+                elements.into_iter().map(canonical_value).collect();
+            Value::Array(canonical_elements)
+        }
+        Value::Tag(tag, inner_value) => {
+            // The tag itself is a u64; its representation is handled by the serializer.
+            // The inner value must be in canonical form.
+            Value::Tag(tag, Box::new(canonical_value(*inner_value)))
+        }
+        // Other Value variants (Integer, Bytes, Text, Bool, Null, Float)
+        // are considered "canonical" in their structure.
+        _ => value,
+    }
+}
+
+/// Serializes an object as CBOR into a writer using RFC 8949 Deterministic Encoding.
+#[inline]
+pub fn canonical_into_writer<T: ?Sized + ser::Serialize, W: Write>(
+    value: &T,
+    writer: W,
+) -> Result<(), crate::ser::Error<W::Error>>
+where
+    W::Error: core::fmt::Debug,
+{
+    let value =
+        Value::serialized(value).map_err(|err| crate::ser::Error::Value(err.to_string()))?;
+
+    let cvalue = canonical_value(value);
+    crate::into_writer(&cvalue, writer)
+}
+
+/// Serializes an object as CBOR into a new Vec<u8> using RFC 8949 Deterministic Encoding.
+#[cfg(feature = "std")]
+#[inline]
+pub fn canonical_into_vec<T: ?Sized + ser::Serialize>(
+    value: &T,
+) -> Result<Vec<u8>, crate::ser::Error<<Vec<u8> as ciborium_io::Write>::Error>> {
+    let value =
+        Value::serialized(value).map_err(|err| crate::ser::Error::Value(err.to_string()))?;
+
+    let cvalue = canonical_value(value);
+    crate::into_vec(&cvalue)
 }

@@ -9,9 +9,12 @@ mod de;
 mod error;
 mod ser;
 
-pub use canonical::CanonicalValue;
+pub use canonical::{canonical_into_writer, canonical_value, CanonicalValue};
 pub use error::Error;
 pub use integer::Integer;
+
+#[cfg(feature = "std")]
+pub use canonical::canonical_into_vec;
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 
