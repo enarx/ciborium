@@ -240,7 +240,7 @@ pub(crate) struct Error;
 impl core::fmt::Display for Error {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

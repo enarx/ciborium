@@ -56,12 +56,12 @@ fn fuzz() {
 
             let mut string = String::new();
             parent.read_to_string(&mut string).unwrap();
-            eprint!("{}", string);
+            eprint!("{string}");
 
             let mut status = 0;
             assert_eq!(pid, unsafe { waitpid(pid, &mut status, 0) });
 
-            eprintln!("exit status: {:?}", status);
+            eprintln!("exit status: {status:?}");
             assert_eq!(0, status);
         }
     }

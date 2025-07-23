@@ -48,7 +48,7 @@ fn tag<T: Serialize + DeserializeOwned + Debug + Eq>(
     match from_reader(&bytes[..]) {
         Ok(x) if success => assert_eq!(item, x),
         Ok(..) => panic!("unexpected success"),
-        Err(e) if success => panic!("{:?}", e),
+        Err(e) if success => panic!("{e:?}"),
         Err(..) => (),
     }
 
@@ -56,7 +56,7 @@ fn tag<T: Serialize + DeserializeOwned + Debug + Eq>(
     match value.deserialized() {
         Ok(x) if success => assert_eq!(item, x),
         Ok(..) => panic!("unexpected success"),
-        Err(e) if success => panic!("{:?}", e),
+        Err(e) if success => panic!("{e:?}"),
         Err(..) => (),
     }
 }
