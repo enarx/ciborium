@@ -12,23 +12,35 @@ enum Internal<T> {
     Tagged(u64, T),
 }
 
-/// An optional CBOR tag and its data item
-///
-/// No semantic evaluation of the tag is made.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Captured<V>(pub Option<u64>, pub V);
+/// Require an exact tag.
+#[deprecated = "use RequireExact"]
+pub type Required<V, const TAG: u64> = RequireExact<V, TAG>;
 
-impl<'de, V: Deserialize<'de>> Deserialize<'de> for Captured<V> {
+/// Allow any tag, or no tag at all.
+#[deprecated = "use AllowAny"]
+pub type Captured<V> = AllowAny<V>;
+
+/// Require an exact tag.
+#[deprecated = "use AllowExact"]
+pub type Accepted<V, const TAG: u64> = AllowExact<V, TAG>;
+
+/// Allow any tag, if present.
+///
+/// The tag will be emitted during serialization, if present.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AllowAny<V>(pub Option<u64>, pub V);
+
+impl<'de, V: Deserialize<'de>> Deserialize<'de> for AllowAny<V> {
     #[inline]
     fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match Internal::deserialize(deserializer)? {
-            Internal::Tagged(t, v) => Ok(Captured(Some(t), v)),
-            Internal::Untagged(v) => Ok(Captured(None, v)),
+            Internal::Tagged(t, v) => Ok(AllowAny(Some(t), v)),
+            Internal::Untagged(v) => Ok(AllowAny(None, v)),
         }
     }
 }
 
-impl<V: Serialize> Serialize for Captured<V> {
+impl<V: Serialize> Serialize for AllowAny<V> {
     #[inline]
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self.0 {
@@ -38,51 +50,70 @@ impl<V: Serialize> Serialize for Captured<V> {
     }
 }
 
-/// A required CBOR tag
+/// Allow a specific tag, if present.
 ///
-/// This data type indicates that the specified tag, and **only** that tag,
-/// is required during deserialization. If the tag is missing, deserialization
-/// will fail. The tag will always be emitted during serialization.
+/// The tag will always be emitted during serialization.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Required<V, const TAG: u64>(pub V);
+pub struct AllowExact<V, const TAG: u64>(pub V);
 
-impl<'de, V: Deserialize<'de>, const TAG: u64> Deserialize<'de> for Required<V, TAG> {
+impl<'de, V: Deserialize<'de>, const TAG: u64> Deserialize<'de> for AllowExact<V, TAG> {
     #[inline]
     fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match Internal::deserialize(deserializer)? {
-            Internal::Tagged(t, v) if t == TAG => Ok(Required(v)),
+            Internal::Tagged(t, v) if t == TAG => Ok(AllowExact(v)),
+            Internal::Untagged(v) => Ok(AllowExact(v)),
             _ => Err(de::Error::custom("required tag not found")),
         }
     }
 }
 
-impl<V: Serialize, const TAG: u64> Serialize for Required<V, TAG> {
+impl<V: Serialize, const TAG: u64> Serialize for AllowExact<V, TAG> {
     #[inline]
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         Internal::Tagged(TAG, &self.0).serialize(serializer)
     }
 }
 
-/// An optional CBOR tag
+/// Require any tag to be present.
 ///
-/// This data type indicates that the specified tag, and **only** that tag,
-/// is accepted, but not required, during deserialization. The tag will always
-/// be emitted during serialization.
+/// The tag will always be emitted during serialization.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Accepted<V, const TAG: u64>(pub V);
+pub struct RequireAny<V>(pub u64, pub V);
 
-impl<'de, V: Deserialize<'de>, const TAG: u64> Deserialize<'de> for Accepted<V, TAG> {
+impl<'de, V: Deserialize<'de>> Deserialize<'de> for RequireAny<V> {
     #[inline]
     fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match Internal::deserialize(deserializer)? {
-            Internal::Tagged(t, v) if t == TAG => Ok(Accepted(v)),
-            Internal::Untagged(v) => Ok(Accepted(v)),
+            Internal::Tagged(t, v) => Ok(RequireAny(t, v)),
             _ => Err(de::Error::custom("required tag not found")),
         }
     }
 }
 
-impl<V: Serialize, const TAG: u64> Serialize for Accepted<V, TAG> {
+impl<V: Serialize> Serialize for RequireAny<V> {
+    #[inline]
+    fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Internal::Tagged(self.0, &self.1).serialize(serializer)
+    }
+}
+
+/// Require a specific tag to be present.
+///
+/// The tag will always be emitted during serialization.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RequireExact<V, const TAG: u64>(pub V);
+
+impl<'de, V: Deserialize<'de>, const TAG: u64> Deserialize<'de> for RequireExact<V, TAG> {
+    #[inline]
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match Internal::deserialize(deserializer)? {
+            Internal::Tagged(t, v) if t == TAG => Ok(RequireExact(v)),
+            _ => Err(de::Error::custom("required tag not found")),
+        }
+    }
+}
+
+impl<V: Serialize, const TAG: u64> Serialize for RequireExact<V, TAG> {
     #[inline]
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         Internal::Tagged(TAG, &self.0).serialize(serializer)
