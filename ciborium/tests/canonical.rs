@@ -36,7 +36,7 @@ fn rfc8949_example() {
     let golden = array.clone();
 
     // Shuffle the array.
-    array.shuffle(&mut rand::thread_rng());
+    array.shuffle(&mut rand::rng());
 
     array.sort();
 
@@ -85,7 +85,7 @@ fn negative_numbers() {
     let golden = array.clone();
 
     // Shuffle the array.
-    array.shuffle(&mut rand::thread_rng());
+    array.shuffle(&mut rand::rng());
 
     array.sort();
 
