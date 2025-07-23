@@ -3,7 +3,7 @@
 extern crate std;
 
 use ciborium::cbor;
-use ciborium::tag::Required;
+use ciborium::tag::RequireExact;
 use ciborium::value::{canonical_into_writer, canonical_value, CanonicalValue, Value};
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -94,7 +94,7 @@ fn negative_numbers() {
 
 #[test]
 fn tagged_option() {
-    let mut opt = Some(Required::<u64, 0xff>(2u32.into()));
+    let mut opt = Some(RequireExact::<u64, 0xff>(2u32.into()));
 
     let mut bytes = Vec::new();
     ciborium::ser::into_writer(&opt, &mut bytes).unwrap();
