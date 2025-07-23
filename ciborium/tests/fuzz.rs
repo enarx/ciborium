@@ -36,11 +36,11 @@ fn fuzz() {
             let mut child = unsafe { File::from_raw_fd(fds[1]) };
             unsafe { close(fds[0]) };
 
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let mut buffer = [0u8; 32];
 
             for _ in 0..ITERATIONS {
-                let len = rng.gen_range(0..buffer.len());
+                let len = rng.random_range(0..buffer.len());
                 rng.fill(&mut buffer[..len]);
 
                 writeln!(child, "{}", hex::encode(&buffer[..len])).unwrap();
