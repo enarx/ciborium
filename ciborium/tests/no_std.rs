@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#![cfg(all(feature = "serde", not(feature = "std")))]
+#![cfg(not(feature = "std"))]
 #![no_std]
 
 extern crate alloc;
