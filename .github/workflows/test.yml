@@ -19,7 +19,7 @@ jobs:
           - beta
           - nightly
         crates:
-          - {name: ciborium-ll}
+          - {name: ciborium-ll, feat: half}
           - {name: ciborium}
           - {name: ciborium, feat: std}
           - {name: ciborium-io}
