@@ -4,13 +4,13 @@ version = "0.2.2"
 authors = ["Nathaniel McCallum <npmccallum@profian.com>"]
 license = "Apache-2.0"
 edition = "2021"
-rust-version = "1.70"
 homepage = "https://github.com/enarx/ciborium"
 repository = "https://github.com/enarx/ciborium"
 description = "serde implementation of CBOR using ciborium-basic"
 readme = "README.md"
 keywords = ["cbor", "serde"]
 categories = ["data-structures", "embedded", "encoding", "no-std", "parsing"]
+rust-version = "1.81"
 
 [badges]
 # See https://doc.rust-lang.org/cargo/reference/manifest.html#the-badges-section
