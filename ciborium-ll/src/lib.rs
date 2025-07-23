@@ -123,6 +123,7 @@
 //! assert_eq!(b"\xa1\x07\x7f\x67Hello, \x66World!\xff", &buffer[..]);
 //! ```
 
+#![cfg_attr(not(feature = "half"), feature(f16))]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
 #![deny(clippy::all)]
