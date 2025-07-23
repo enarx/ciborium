@@ -46,6 +46,8 @@ fn fuzz() {
                 writeln!(child, "{}", hex::encode(&buffer[..len])).unwrap();
                 writeln!(child, "{:?}", from_reader::<Value, _>(&buffer[..len])).unwrap();
             }
+
+            std::process::exit(0);
         }
 
         pid => {
