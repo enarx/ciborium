@@ -16,7 +16,7 @@ fn array() {
     let bytes = [0x9f; 128 * 1024];
     match from_reader::<Value, _>(&bytes[..]).unwrap_err() {
         Error::RecursionLimitExceeded => (),
-        e => panic!("incorrect error: {:?}", e),
+        e => panic!("incorrect error: {e:?}"),
     }
 }
 
@@ -25,7 +25,7 @@ fn map() {
     let bytes = [0xbf; 128 * 1024];
     match from_reader::<Value, _>(&bytes[..]).unwrap_err() {
         Error::RecursionLimitExceeded => (),
-        e => panic!("incorrect error: {:?}", e),
+        e => panic!("incorrect error: {e:?}"),
     }
 }
 
@@ -34,7 +34,7 @@ fn bytes() {
     let bytes = [0x5f; 128 * 1024];
     match from_reader::<Value, _>(&bytes[..]).unwrap_err() {
         Error::Syntax(..) => (),
-        e => panic!("incorrect error: {:?}", e),
+        e => panic!("incorrect error: {e:?}"),
     }
 }
 
@@ -43,7 +43,7 @@ fn text() {
     let bytes = [0x7f; 128 * 1024];
     match from_reader::<Value, _>(&bytes[..]).unwrap_err() {
         Error::Syntax(..) => (),
-        e => panic!("incorrect error: {:?}", e),
+        e => panic!("incorrect error: {e:?}"),
     }
 }
 
@@ -53,18 +53,18 @@ fn array_limit() {
     for limit in 16..256 {
         match from_reader_with_recursion_limit::<Value, _>(&bytes[..], limit).unwrap_err() {
             Error::RecursionLimitExceeded => (),
-            e => panic!("incorrect error with limit {}: {:?}", limit, e),
+            e => panic!("incorrect error with limit {limit}: {e:?}"),
         }
         // Data that is nested beyond the limit should fail with `RecursionLimitExceeded`
         match from_reader_with_recursion_limit::<Value, _>(&bytes[..limit + 1], limit).unwrap_err()
         {
             Error::RecursionLimitExceeded => (),
-            e => panic!("incorrect error with limit {}: {:?}", limit, e),
+            e => panic!("incorrect error with limit {limit}: {e:?}"),
         }
         // Data that is nested within the limit fails with a different error.
         match from_reader_with_recursion_limit::<Value, _>(&bytes[..limit], limit).unwrap_err() {
             Error::Io(..) => (),
-            e => panic!("incorrect error with limit {}: {:?}", limit, e),
+            e => panic!("incorrect error with limit {limit}: {e:?}"),
         }
     }
 }
@@ -75,18 +75,18 @@ fn map_limit() {
     for limit in 16..256 {
         match from_reader_with_recursion_limit::<Value, _>(&bytes[..], limit).unwrap_err() {
             Error::RecursionLimitExceeded => (),
-            e => panic!("incorrect error with limit {}: {:?}", limit, e),
+            e => panic!("incorrect error with limit {limit}: {e:?}"),
         }
         // Data that is nested beyond the limit should fail with `RecursionLimitExceeded`
         match from_reader_with_recursion_limit::<Value, _>(&bytes[..limit + 1], limit).unwrap_err()
         {
             Error::RecursionLimitExceeded => (),
-            e => panic!("incorrect error with limit {}: {:?}", limit, e),
+            e => panic!("incorrect error with limit {limit}: {e:?}"),
         }
         // Data that is nested within the limit fails with a different error.
         match from_reader_with_recursion_limit::<Value, _>(&bytes[..limit], limit).unwrap_err() {
             Error::Io(..) => (),
-            e => panic!("incorrect error with limit {}: {:?}", limit, e),
+            e => panic!("incorrect error with limit {limit}: {e:?}"),
         }
     }
 }

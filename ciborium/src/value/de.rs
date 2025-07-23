@@ -177,7 +177,7 @@ impl<'de> de::Deserialize<'de> for Value {
 
 struct Deserializer<T>(T);
 
-impl<'a> Deserializer<&'a Value> {
+impl Deserializer<&Value> {
     fn integer<N>(&self, kind: &'static str) -> Result<N, Error>
     where
         N: TryFrom<u128>,
@@ -223,7 +223,7 @@ impl<'a> Deserializer<&'a Value> {
     }
 }
 
-impl<'a, 'de> de::Deserializer<'de> for Deserializer<&'a Value> {
+impl<'de> de::Deserializer<'de> for Deserializer<&Value> {
     type Error = Error;
 
     #[inline]
@@ -599,7 +599,7 @@ impl<'a, 'de> de::EnumAccess<'de> for Deserializer<&'a Value> {
     }
 }
 
-impl<'a, 'de> de::VariantAccess<'de> for Deserializer<&'a Value> {
+impl<'de> de::VariantAccess<'de> for Deserializer<&Value> {
     type Error = Error;
 
     #[inline]

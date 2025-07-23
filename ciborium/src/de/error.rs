@@ -59,7 +59,7 @@ impl<T> From<ciborium_ll::Error<T>> for Error<T> {
 impl<T: Debug> Display for Error<T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
