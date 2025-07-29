@@ -27,7 +27,7 @@ serde = { version = "1.0.170", default-features = false, features = ["alloc", "d
 
 [dev-dependencies]
 serde_bytes = "0.11"
-rstest = "0.25.0"
+rstest = "0.26.1"
 rand = "0.8"
 hex = "0.4"
 
