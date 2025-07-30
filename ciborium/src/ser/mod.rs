@@ -87,13 +87,8 @@ where
             _ => {}
         }
 
-        let bytes = raw.to_be_bytes();
-
-        // Skip leading zeros.
-        let mut slice = &bytes[..];
-        while !slice.is_empty() && slice[0] == 0 {
-            slice = &slice[1..];
-        }
+        let first_non_zero_byte = raw.leading_zeros() as usize / 8;
+        let slice = &raw.to_be_bytes()[first_non_zero_byte..];
 
         self.0.push(Header::Tag(tag))?;
         self.0.push(Header::Bytes(Some(slice.len())))?;
@@ -126,13 +121,8 @@ where
             return self.serialize_u64(x);
         }
 
-        let bytes = v.to_be_bytes();
-
-        // Skip leading zeros.
-        let mut slice = &bytes[..];
-        while !slice.is_empty() && slice[0] == 0 {
-            slice = &slice[1..];
-        }
+        let first_non_zero_byte = v.leading_zeros() as usize / 8;
+        let slice = &v.to_be_bytes()[first_non_zero_byte..];
 
         self.0.push(Header::Tag(tag::BIGPOS))?;
         self.0.push(Header::Bytes(Some(slice.len())))?;
