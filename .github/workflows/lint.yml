@@ -5,7 +5,7 @@ jobs:
     name: cargo fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust toolchain
         run: rustup show && rustup update
       - name: cargo fmt
@@ -15,7 +15,7 @@ jobs:
     name: cargo clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust toolchain
         run: rustup show && rustup update
       - name: cargo clippy
@@ -25,7 +25,7 @@ jobs:
     name: cargo readme
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo +stable install cargo-readme
       - run: cd ciborium-io && cargo readme > README.md
