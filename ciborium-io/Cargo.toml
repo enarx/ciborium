@@ -26,7 +26,7 @@ std = ["alloc"]
 embedded-io = ["dep:embedded-io"]
 
 [dependencies]
-embedded-io = { version = "0.6.1", optional = true }
+embedded-io = { version = "0.7.1", optional = true }
 
 [package.metadata.docs.rs]
 all-features = true
