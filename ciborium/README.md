@@ -1,7 +1,7 @@
 [![Workflow Status](https://github.com/enarx/ciborium/workflows/test/badge.svg)](https://github.com/enarx/ciborium/actions?query=workflow%3A%22test%22)
 [![Average time to resolve an issue](https://isitmaintained.com/badge/resolution/enarx/ciborium.svg)](https://isitmaintained.com/project/enarx/ciborium "Average time to resolve an issue")
 [![Percentage of issues still open](https://isitmaintained.com/badge/open/enarx/ciborium.svg)](https://isitmaintained.com/project/enarx/ciborium "Percentage of issues still open")
-![Maintenance](https://img.shields.io/badge/maintenance-activly--developed-brightgreen.svg)
+![Maintenance](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg)
 
 # ciborium
 
@@ -34,7 +34,7 @@ reasons for this choice. First, the specification seems to imply it by
 using a separate bit for the sign. Second, the specification requires
 that implementations handle leading zeroes; a liberal reading of which
 implies a requirement for lossless coercion. Third, dynamic languages like
-Python have no notion of "integer width," making this is a practical
+Python has no notion of "integer width," making this a practical
 choice for maximizing wire compatibility with those languages.
 
 This coercion is **always** lossless. For floats, this implies that we
