@@ -1,4 +1,4 @@
-//! Contains helper types for dealing with CBOR tags
+//! Contains helper types for dealing with CBOR tags.
 
 use serde::{de, de::Error as _, forward_to_deserialize_any, ser, Deserialize, Serialize};
 

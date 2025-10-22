@@ -18,7 +18,7 @@ pub use canonical::canonical_into_vec;
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 
-/// A representation of a dynamic CBOR value that can handled dynamically
+/// A representation of a dynamic CBOR value that can be handled dynamically
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
