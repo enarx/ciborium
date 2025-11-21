@@ -5,7 +5,7 @@ jobs:
     name: test ${{ matrix.toolchain }} ${{ matrix.profile.name }} ${{ matrix.crates.name }} ${{ matrix.crates.feat }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install Rust
         run: rustup toolchain install ${{ matrix.toolchain }}
       - name: cargo test
