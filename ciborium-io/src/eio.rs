@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::{Read, Write};
 
 /// Wrapper around W: embedded_io::Write implementing ciborium::Write

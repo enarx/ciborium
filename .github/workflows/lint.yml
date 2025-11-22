@@ -21,6 +21,14 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-features --tests -- -D warnings
 
+  check-spdx-headers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: enarx/spdx@master
+        with:
+          licenses: Apache-2.0
+
   readme:
     name: cargo readme
     runs-on: ubuntu-latest
