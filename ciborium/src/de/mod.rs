@@ -8,11 +8,10 @@ pub use error::Error;
 
 use alloc::{string::String, vec::Vec};
 
+use crate::{simple_type::SimpleTypeAccess, tag::TagAccess};
 use ciborium_io::Read;
 use ciborium_ll::*;
 use serde::de::{self, value::BytesDeserializer, Deserializer as _};
-
-use crate::tag::TagAccess;
 
 trait Expected<E: de::Error> {
     fn expected(self, kind: &'static str) -> E;
@@ -213,8 +212,22 @@ where
             Header::Simple(simple::FALSE) => self.deserialize_bool(visitor),
             Header::Simple(simple::TRUE) => self.deserialize_bool(visitor),
             Header::Simple(simple::NULL) => self.deserialize_option(visitor),
-            Header::Simple(simple::UNDEFINED) => self.deserialize_option(visitor),
-            h @ Header::Simple(..) => Err(h.expected("known simple value")),
+            Header::Simple(v @ simple::UNDEFINED) => {
+                let _: Header = self.decoder.pull()?;
+                visitor.visit_enum(SimpleTypeAccess::new(self, v))
+            }
+            // Those have to be registered via Standard Actions or are reserved so we should error whenever we
+            // encounter one. This crate should be updated once new entries in this range are added
+            // in the IANA registry
+            h @ Header::Simple(0..=31) => Err(h.expected("known simple value")),
+            // However we should support arbitrary simple types
+            Header::Simple(v) => {
+                let _: Header = self.decoder.pull()?;
+                self.recurse(|me| {
+                    let access = SimpleTypeAccess::new(me, v);
+                    visitor.visit_enum(access)
+                })
+            }
 
             h @ Header::Break => Err(h.expected("non-break")),
         }
@@ -604,6 +617,19 @@ where
                 let access = TagAccess::new(me, tag);
                 visitor.visit_enum(access)
             });
+        } else if name == "@@ST@@" {
+            return match self.decoder.pull()? {
+                Header::Simple(v @ simple::UNDEFINED) => {
+                    self.decoder.push(Header::Positive(v as u64));
+                    visitor.visit_enum(SimpleTypeAccess::new(self, v))
+                }
+                h @ Header::Simple(0..=31) => Err(h.expected("known simple value")),
+                Header::Simple(v) => {
+                    self.decoder.push(Header::Positive(v as u64));
+                    visitor.visit_enum(SimpleTypeAccess::new(self, v))
+                }
+                h => Err(h.expected("known simple value")),
+            };
         }
 
         loop {

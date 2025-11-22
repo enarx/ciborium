@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::tag::TagAccess;
+use crate::{simple_type::SimpleTypeAccess, tag::TagAccess};
 
 use super::{Error, Integer, Value};
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::iter::Peekable;
 
-use ciborium_ll::tag;
+use ciborium_ll::{simple, tag};
 use serde::de::{self, Deserializer as _};
 
 impl<'a> From<Integer> for de::Unexpected<'a> {
@@ -36,6 +36,7 @@ impl<'a> From<&'a Value> for de::Unexpected<'a> {
             Value::Map(..) => Self::Map,
             Value::Null => Self::Other("null"),
             Value::Tag(..) => Self::Other("tag"),
+            Value::Simple(..) => Self::Other("simple"),
         }
     }
 }
@@ -141,9 +142,9 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
     fn visit_enum<A: de::EnumAccess<'de>>(self, acc: A) -> Result<Self::Value, A::Error> {
         use serde::de::VariantAccess;
 
-        struct Inner;
+        struct TagInner;
 
-        impl<'de> serde::de::Visitor<'de> for Inner {
+        impl<'de> serde::de::Visitor<'de> for TagInner {
             type Value = Value;
 
             fn expecting(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -162,9 +163,30 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
             }
         }
 
+        struct SimpleTypeInner;
+
+        impl<'de> serde::de::Visitor<'de> for SimpleTypeInner {
+            type Value = Value;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                write!(formatter, "a valid CBOR item")
+            }
+
+            #[inline]
+            fn visit_seq<A: de::SeqAccess<'de>>(self, mut acc: A) -> Result<Self::Value, A::Error> {
+                let st = acc
+                    .next_element::<u8>()?
+                    .ok_or_else(|| de::Error::custom("expected simple type"))?;
+                Ok(Value::Simple(st))
+            }
+        }
+
         let (name, data): (String, _) = acc.variant()?;
-        assert_eq!("@@TAGGED@@", name);
-        data.tuple_variant(2, Inner)
+        match name.as_str() {
+            "@@TAGGED@@" => data.tuple_variant(2, TagInner),
+            "@@SIMPLETYPE@@" => data.tuple_variant(1, SimpleTypeInner),
+            _ => panic!("Implementation error"),
+        }
     }
 }
 
@@ -218,6 +240,7 @@ impl Deserializer<&Value> {
                 .map(|x| x ^ !0)
                 .map_err(|_| err())
                 .and_then(|x| x.try_into().map_err(|_| err()))?,
+            Value::Simple(x) => i128::from(*x).try_into().map_err(|_| err())?,
             _ => return Err(de::Error::invalid_type(self.0.into(), &"(big)int")),
         })
     }
@@ -228,6 +251,7 @@ impl<'de> de::Deserializer<'de> for Deserializer<&Value> {
 
     #[inline]
     fn deserialize_any<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        use serde::ser::Error as _;
         match self.0 {
             Value::Bytes(x) => visitor.visit_bytes(x),
             Value::Text(x) => visitor.visit_str(x),
@@ -235,6 +259,14 @@ impl<'de> de::Deserializer<'de> for Deserializer<&Value> {
             Value::Map(x) => visitor.visit_map(Deserializer(x.iter().peekable())),
             Value::Bool(x) => visitor.visit_bool(*x),
             Value::Null => visitor.visit_none(),
+            Value::Simple(v @ simple::UNDEFINED) => {
+                visitor.visit_enum(SimpleTypeAccess::new(self, *v))
+            }
+            Value::Simple(0..=31) => Err(Self::Error::custom("Unsupported simple type")),
+            Value::Simple(v) => {
+                let access = SimpleTypeAccess::new(self, *v);
+                visitor.visit_enum(access)
+            }
 
             Value::Tag(t, v) => {
                 let parent: Deserializer<&Value> = Deserializer(v);
@@ -493,6 +525,18 @@ impl<'de> de::Deserializer<'de> for Deserializer<&Value> {
             let parent: Deserializer<&Value> = Deserializer(val);
             let access = TagAccess::new(parent, tag);
             return visitor.visit_enum(access);
+        } else if name == "@@ST@@" {
+            use serde::ser::Error as _;
+            return match self.0 {
+                Value::Simple(v @ simple::UNDEFINED) => {
+                    visitor.visit_enum(SimpleTypeAccess::new(Deserializer(self.0), *v))
+                }
+                Value::Simple(0..=31) => return Err(Error::custom("Unsupported simple type")),
+                Value::Simple(v) => {
+                    visitor.visit_enum(SimpleTypeAccess::new(Deserializer(self.0), *v))
+                }
+                _ => Err(Error::custom("Implementation error for simple type")),
+            };
         }
 
         match self.0 {
