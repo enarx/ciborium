@@ -44,7 +44,7 @@ fn rfc8949_example() {
 }
 
 #[test]
-fn map() {
+fn map_old() {
     let mut map = BTreeMap::new();
     map.insert(cval!(false), val!(2));
     map.insert(cval!([-1]), val!(5));
@@ -61,6 +61,58 @@ fn map() {
     assert_eq!(
         hex::encode(&bytes1),
         "a80a002001f402186403617a048120056261610681186407"
+    );
+}
+
+/// Use length-first ordering for keys.
+#[test]
+#[cfg(feature = "std")]
+fn map_rfc7049() {
+    use ciborium::canonical::Rfc7049;
+
+    let mut map = BTreeMap::new();
+    map.insert(cval!(false), val!(2));
+    map.insert(cval!([-1]), val!(5));
+    map.insert(cval!(-1), val!(1));
+    map.insert(cval!(10), val!(0));
+    map.insert(cval!(100), val!(3));
+    map.insert(cval!([100]), val!(7));
+    map.insert(cval!("z"), val!(4));
+    map.insert(cval!("aa"), val!(6));
+
+    let bytes1 = ciborium::ser::to_vec_canonical::<_, Rfc7049>(&map).unwrap();
+
+    assert_eq!(
+        hex::encode(bytes1),
+        "a80a002001f402186403617a048120056261610681186407"
+    );
+}
+
+/// Match [RFC 8949] deterministic ordering example.
+///
+/// The RFC specifies lexicographic byte ordering of serialized keys.
+///
+/// [RFC 8949]: https://www.rfc-editor.org/rfc/rfc8949.html#name-core-deterministic-encoding
+#[test]
+#[cfg(feature = "std")]
+fn map_rfc8949() {
+    use ciborium::canonical::Rfc8949;
+
+    let mut map = BTreeMap::new();
+    map.insert(cval!(false), val!(2));
+    map.insert(cval!([-1]), val!(5));
+    map.insert(cval!(-1), val!(1));
+    map.insert(cval!(10), val!(0));
+    map.insert(cval!(100), val!(3));
+    map.insert(cval!([100]), val!(7));
+    map.insert(cval!("z"), val!(4));
+    map.insert(cval!("aa"), val!(6));
+
+    let bytes1 = ciborium::ser::to_vec_canonical::<_, Rfc8949>(&map).unwrap();
+
+    assert_eq!(
+        hex::encode(bytes1),
+        "a80a001864032001617a046261610681186407812005f402"
     );
 }
 
