@@ -10,7 +10,7 @@ description = "Low-level CBOR codec primitives"
 readme = "README.md"
 keywords = ["cbor"]
 categories = ["data-structures", "embedded", "encoding", "no-std", "parsing"]
-rust-version = "1.81"
+rust-version = "1.85"
 
 [badges]
 # See https://doc.rust-lang.org/cargo/reference/manifest.html#the-badges-section
