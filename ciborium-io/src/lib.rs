@@ -22,6 +22,9 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+pub mod slice;
+pub use slice::{EndOfSliceError, SliceReader};
+
 /// Adapters of embedded-io::{Read, Write} implementing ciborium::{Read, Write}
 #[cfg(feature = "embedded-io")]
 pub mod eio;
