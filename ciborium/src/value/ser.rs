@@ -5,15 +5,23 @@ use super::{Error, Value};
 use alloc::{vec, vec::Vec};
 
 use ::serde::ser::{self, SerializeMap as _, SerializeSeq as _, SerializeTupleVariant as _};
+use ciborium_ll::simple;
 
 impl ser::Serialize for Value {
     #[inline]
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::Error as _;
+
         match self {
             Value::Bytes(x) => serializer.serialize_bytes(x),
             Value::Bool(x) => serializer.serialize_bool(*x),
             Value::Text(x) => serializer.serialize_str(x),
             Value::Null => serializer.serialize_unit(),
+            Value::Simple(x @ simple::UNDEFINED) => {
+                serializer.serialize_newtype_struct("@@SIMPLETYPE@@", x)
+            }
+            Value::Simple(0..=31) => Err(S::Error::custom("Unsupported simple type")),
+            Value::Simple(x) => serializer.serialize_newtype_struct("@@SIMPLETYPE@@", x),
 
             Value::Tag(t, v) => {
                 let mut acc = serializer.serialize_tuple_variant("@@TAG@@", 0, "@@TAGGED@@", 2)?;
@@ -174,9 +182,19 @@ impl ser::Serializer for Serializer<()> {
     #[inline]
     fn serialize_newtype_struct<U: ?Sized + ser::Serialize>(
         self,
-        _name: &'static str,
+        name: &'static str,
         value: &U,
     ) -> Result<Value, Error> {
+        if name == "@@SIMPLETYPE@@" {
+            use serde::ser::Error as _;
+
+            let v = Value::serialized(value)?;
+            let v = v
+                .as_integer()
+                .ok_or_else(|| Error::custom("Internal error handling simple types"))?;
+            let v = u8::try_from(v).map_err(Error::custom)?;
+            return Ok(Value::Simple(v));
+        }
         value.serialize(self)
     }
 
@@ -190,6 +208,16 @@ impl ser::Serializer for Serializer<()> {
     ) -> Result<Value, Error> {
         Ok(match (name, variant) {
             ("@@TAG@@", "@@UNTAGGED@@") => Value::serialized(value)?,
+            ("@@ST@@", "@@SIMPLETYPE@@") => {
+                use serde::ser::Error as _;
+
+                let v = Value::serialized(value)?;
+                let v = v
+                    .as_integer()
+                    .ok_or_else(|| Error::custom("Internal error handling simple types"))?;
+                let v = u8::try_from(v).map_err(Error::custom)?;
+                Value::Simple(v)
+            }
             _ => vec![(variant.into(), Value::serialized(value)?)].into(),
         })
     }
