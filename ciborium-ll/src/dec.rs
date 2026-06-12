@@ -130,7 +130,7 @@ impl<R: Read> Decoder<R> {
     /// bytes were already read from the reader before the decoder was created,
     /// you must account for this.
     #[inline]
-    pub fn offset(&mut self) -> usize {
+    pub fn offset(&self) -> usize {
         self.offset
     }
 
@@ -141,10 +141,10 @@ impl<R: Read> Decoder<R> {
     /// be called immediately after first pulling a `Header::Bytes(len)` from
     /// the wire and `len` must be provided to this function from that value.
     ///
-    /// The `buf` parameter provides a buffer used when reading in the segmented
-    /// bytes. A large buffer will result in fewer calls to read incoming bytes
-    /// at the cost of memory usage. You should consider this trade off when
-    /// deciding the size of your buffer.
+    /// The buffer passed to `Segment::pull()` controls how many bytes are
+    /// read at a time. A large buffer will result in fewer calls to read
+    /// incoming bytes at the cost of memory usage. You should consider this
+    /// trade off when deciding the size of your buffer.
     #[inline]
     pub fn bytes<'a>(&'a mut self, len: Option<usize>) -> Segments<'a, R, crate::seg::Bytes> {
         self.push(Header::Bytes(len));
@@ -161,10 +161,11 @@ impl<R: Read> Decoder<R> {
     /// be called immediately after first pulling a `Header::Text(len)` from
     /// the wire and `len` must be provided to this function from that value.
     ///
-    /// The `buf` parameter provides a buffer used when reading in the segmented
-    /// text. A large buffer will result in fewer calls to read incoming bytes
-    /// at the cost of memory usage. You should consider this trade off when
-    /// deciding the size of your buffer.
+    /// The buffer passed to `Segment::pull()` controls how many bytes are
+    /// read at a time; it must hold at least 4 bytes to make progress on all
+    /// inputs. A large buffer will result in fewer calls to read incoming
+    /// bytes at the cost of memory usage. You should consider this trade off
+    /// when deciding the size of your buffer.
     #[inline]
     pub fn text<'a>(&'a mut self, len: Option<usize>) -> Segments<'a, R, crate::seg::Text> {
         self.push(Header::Text(len));
