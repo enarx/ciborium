@@ -130,6 +130,10 @@ impl<'r, R: Read, P: Parser> Segment<'r, R, P> {
     /// Gets the next parsed chunk within the segment
     ///
     /// Returns `Ok(None)` when all chunks have been read.
+    ///
+    /// Note that `buffer` must be able to hold the parser's saved bytes (see
+    /// `Parser::saved()`; at most 3 for text) plus at least one new byte.
+    /// A smaller buffer cannot make progress and results in an error.
     #[inline]
     pub fn pull<'a>(
         &mut self,
@@ -148,6 +152,12 @@ impl<'r, R: Read, P: Parser> Segment<'r, R, P> {
         let size = min(buffer.len(), prev + self.unread);
         let full = &mut buffer[..size];
         let next = &mut full[min(size, prev)..];
+
+        // A buffer that cannot hold the saved bytes plus at least one new
+        // byte cannot make progress; fail instead of looping forever.
+        if next.is_empty() {
+            return Err(Error::Syntax(self.offset));
+        }
 
         // Read additional bytes.
         self.reader.read_exact(next)?;
