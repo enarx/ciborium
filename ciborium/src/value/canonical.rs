@@ -50,13 +50,11 @@ pub fn cmp_value(v1: &Value, v2: &Value) -> Ordering {
         },
         (Bool(s), Bool(o)) => s.cmp(o),
         (Null, Null) => Ordering::Equal,
-        (Tag(t, v), Tag(ot, ov)) => match Value::from(*t).partial_cmp(&Value::from(*ot)) {
-            Some(Ordering::Equal) | None => match v.partial_cmp(ov) {
-                Some(x) => x,
-                None => serialized_canonical_cmp(v1, v2),
-            },
-            Some(x) => x,
-        },
+        // Tagged values (and everything else) are compared by their serialized
+        // bytes. Note that comparing the tag numbers first would be incorrect:
+        // canonical ordering is length-first over the whole encoded item, so a
+        // higher tag with a short payload can sort before a lower tag with a
+        // long payload.
         (_, _) => serialized_canonical_cmp(v1, v2),
     }
 }
