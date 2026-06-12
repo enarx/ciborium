@@ -277,7 +277,7 @@ mod tests {
             (Header::Simple(simple::NULL), "f6", true),
             (Header::Simple(simple::UNDEFINED), "f7", true),
             (Header::Simple(16), "f0", true),
-            (Header::Simple(24), "f818", true),
+            (Header::Simple(32), "f820", true),
             (Header::Simple(255), "f8ff", true),
             (Header::Tag(0), "c0", true),
             (Header::Tag(1), "c1", true),
@@ -311,6 +311,26 @@ mod tests {
                 let len = writer.len();
                 assert_eq!(&bytes[..], &buffer[..1024 - len]);
             }
+        }
+    }
+
+    #[test]
+    fn simple_reserved() {
+        // RFC 8949 §3.3: 0xf8 followed by a byte less than 0x20 is not
+        // well-formed and must be rejected.
+        for x in 0u8..32 {
+            let bytes = [0xf8, x];
+            let mut decoder = Decoder::from(&bytes[..]);
+            assert!(
+                matches!(decoder.pull(), Err(Error::Syntax(0))),
+                "f8{x:02x} must be rejected"
+            );
+        }
+
+        for x in 32u8..=255 {
+            let bytes = [0xf8, x];
+            let mut decoder = Decoder::from(&bytes[..]);
+            assert_eq!(Header::Simple(x), decoder.pull().unwrap());
         }
     }
 

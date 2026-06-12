@@ -29,6 +29,10 @@ pub enum Header {
     Float(f64),
 
     /// A "simple" value
+    ///
+    /// Note well that values 24 to 31 (inclusive) are reserved by RFC 8949
+    /// and have no valid encoding: pushing such a header produces a two-byte
+    /// sequence that is not well-formed and will be rejected when decoded.
     Simple(u8),
 
     /// A tag
@@ -111,7 +115,11 @@ impl TryFrom<Title> for Header {
 
             Title(Major::Other, Minor::More) => Self::Break,
             Title(Major::Other, Minor::This(x)) => Self::Simple(x),
-            Title(Major::Other, Minor::Next1(x)) => Self::Simple(x[0]),
+
+            // RFC 8949 §3.3: two-byte sequences that start with 0xf8 and
+            // continue with a byte less than 0x20 are not well-formed.
+            Title(Major::Other, Minor::Next1([x])) if x >= 32 => Self::Simple(x),
+            Title(Major::Other, Minor::Next1(..)) => return Err(InvalidError(())),
             Title(Major::Other, Minor::Next2(x)) => Self::Float(f16::from_be_bytes(x).into()),
             Title(Major::Other, Minor::Next4(x)) => Self::Float(f32::from_be_bytes(x).into()),
             Title(Major::Other, Minor::Next8(x)) => Self::Float(f64::from_be_bytes(x)),
