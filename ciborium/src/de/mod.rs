@@ -184,20 +184,25 @@ where
                 match tag {
                     tag::BIGPOS | tag::BIGNEG => {
                         let mut bytes = Vec::new();
-                        let result =
-                            match self.integer(Some(Header::Tag(tag)), true, |b| bytes.push(b))? {
-                                (false, _) if !bytes.is_empty() => {
+                        match self.integer(Some(Header::Tag(tag)), true, |b| bytes.push(b))? {
+                            (false, _) if !bytes.is_empty() => {
+                                let access =
+                                    TagAccess::new(BytesDeserializer::new(&bytes), Some(tag));
+                                visitor.visit_enum(access)
+                            }
+                            (false, raw) => visitor.visit_u128(raw),
+                            (true, raw) => match i128::try_from(raw) {
+                                Ok(x) => visitor.visit_i128(x ^ !0),
+                                // The magnitude doesn't fit in i128; preserve
+                                // it as a tagged bignum, exactly like payloads
+                                // longer than 16 bytes.
+                                Err(..) => {
+                                    let buf = raw.to_be_bytes();
                                     let access =
-                                        TagAccess::new(BytesDeserializer::new(&bytes), Some(tag));
-                                    return visitor.visit_enum(access);
+                                        TagAccess::new(BytesDeserializer::new(&buf), Some(tag));
+                                    visitor.visit_enum(access)
                                 }
-                                (false, raw) => return visitor.visit_u128(raw),
-                                (true, raw) => i128::try_from(raw).map(|x| x ^ !0),
-                            };
-
-                        match result {
-                            Ok(x) => visitor.visit_i128(x),
-                            Err(..) => Err(de::Error::custom("integer too large")),
+                            },
                         }
                     }
 
@@ -607,15 +612,22 @@ where
         }
 
         loop {
-            match self.decoder.pull()? {
+            // An enum variant is either encoded as a map with a single entry
+            // (the variant name and its payload) or, for unit variants, as a
+            // bare text string. Remember which form we saw so that variant
+            // payload accesses cannot read past the enum item.
+            let map = match self.decoder.pull()? {
                 Header::Tag(..) => continue,
-                Header::Map(Some(1)) => (),
-                header @ Header::Text(..) => self.decoder.push(header),
+                Header::Map(Some(1)) => true,
+                header @ Header::Text(..) => {
+                    self.decoder.push(header);
+                    false
+                }
                 header => return Err(header.expected("enum")),
-            }
+            };
 
             return self.recurse(|me| {
-                let access = Access(me, Some(0));
+                let access = Enum(me, map);
                 visitor.visit_enum(access)
             });
         }
@@ -695,7 +707,15 @@ where
     }
 }
 
-impl<'de, 'a, 'b, R: Read> de::EnumAccess<'de> for Access<'a, 'b, R>
+/// Variant access for an enum item
+///
+/// The boolean field indicates whether the variant was encoded as a
+/// single-entry map (`true`) or as a bare text string (`false`). A bare
+/// text string only encodes a unit variant; payload accesses in that form
+/// must not consume the following item from the stream.
+struct Enum<'a, 'b, R>(&'a mut Deserializer<'b, R>, bool);
+
+impl<'de, 'a, 'b, R: Read> de::EnumAccess<'de> for Enum<'a, 'b, R>
 where
     R::Error: core::fmt::Debug,
 {
@@ -712,7 +732,7 @@ where
     }
 }
 
-impl<'de, 'a, 'b, R: Read> de::VariantAccess<'de> for Access<'a, 'b, R>
+impl<'de, 'a, 'b, R: Read> de::VariantAccess<'de> for Enum<'a, 'b, R>
 where
     R::Error: core::fmt::Debug,
 {
@@ -720,6 +740,11 @@ where
 
     #[inline]
     fn unit_variant(self) -> Result<(), Self::Error> {
+        if self.1 {
+            // The map form carries a payload; require it to be a unit.
+            <() as de::Deserialize>::deserialize(&mut *self.0)?;
+        }
+
         Ok(())
     }
 
@@ -728,6 +753,13 @@ where
         self,
         seed: U,
     ) -> Result<U::Value, Self::Error> {
+        if !self.1 {
+            return Err(de::Error::invalid_type(
+                de::Unexpected::UnitVariant,
+                &"newtype variant",
+            ));
+        }
+
         seed.deserialize(&mut *self.0)
     }
 
@@ -737,6 +769,13 @@ where
         _len: usize,
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
+        if !self.1 {
+            return Err(de::Error::invalid_type(
+                de::Unexpected::UnitVariant,
+                &"tuple variant",
+            ));
+        }
+
         self.0.deserialize_any(visitor)
     }
 
@@ -746,6 +785,13 @@ where
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
+        if !self.1 {
+            return Err(de::Error::invalid_type(
+                de::Unexpected::UnitVariant,
+                &"struct variant",
+            ));
+        }
+
         self.0.deserialize_any(visitor)
     }
 }
@@ -798,6 +844,10 @@ where
 /// Deserializes as CBOR from a type with [`impl
 /// ciborium_io::Read`](ciborium_io::Read), using a caller-specific buffer as a
 /// temporary scratch space.
+///
+/// The buffer must be at least 4 bytes for all inputs to be deserializable;
+/// smaller buffers may produce errors on inputs containing multi-byte UTF-8
+/// characters. Larger buffers improve performance.
 #[inline]
 pub fn from_reader_with_buffer<T: de::DeserializeOwned, R: Read>(
     reader: R,
@@ -856,7 +906,7 @@ where
 }
 
 /// Returns a deserializer with a specified scratch buffer
-/// amd maximum recursion limit. Inputs that are nested beyond the specified limit
+/// and maximum recursion limit. Inputs that are nested beyond the specified limit
 /// will result in [`Error::RecursionLimitExceeded`] .
 ///
 /// Set a high recursion limit at your own risk (of stack exhaustion)!
