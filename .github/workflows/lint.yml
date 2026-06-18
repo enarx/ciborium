@@ -5,7 +5,7 @@ jobs:
     name: cargo fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         run: rustup show && rustup update
       - name: cargo fmt
@@ -15,7 +15,7 @@ jobs:
     name: cargo clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         run: rustup show && rustup update
       - name: cargo clippy
@@ -24,7 +24,7 @@ jobs:
   check-spdx-headers:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: enarx/spdx@master
         with:
           licenses: Apache-2.0
@@ -33,7 +33,7 @@ jobs:
     name: cargo readme
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo +stable install cargo-readme
       - run: cd ciborium-io && cargo readme > README.md
