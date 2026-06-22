@@ -94,6 +94,7 @@ extern crate alloc;
 
 pub mod de;
 pub mod ser;
+pub mod simple_type;
 pub mod tag;
 pub mod value;
 

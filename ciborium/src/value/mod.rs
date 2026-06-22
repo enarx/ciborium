@@ -48,6 +48,9 @@ pub enum Value {
 
     /// A map
     Map(Vec<(Value, Value)>),
+
+    /// A CBOR "Simple Value" other than true, false, or null
+    Simple(u8),
 }
 
 impl Value {
@@ -594,6 +597,47 @@ impl Value {
     pub fn into_map(self) -> Result<Vec<(Value, Value)>, Self> {
         match self {
             Value::Map(map) => Ok(map),
+            other => Err(other),
+        }
+    }
+
+    /// Returns true if the `Value` is an `SimpleType`. Returns false otherwise.
+    ///
+    /// ```
+    /// # use ciborium::Value;
+    /// #
+    /// assert!(Value::Simple(59).is_simple());
+    /// ```
+    pub fn is_simple(&self) -> bool {
+        self.as_simple().is_some()
+    }
+
+    /// If the `Value` is a `SimpleType`. The value can only be in [0..23] or [32..255].
+    ///
+    /// ```
+    /// # use ciborium::Value;
+    /// #
+    /// assert_eq!(59, Value::Simple(59).as_simple().unwrap());
+    /// ```
+    pub fn as_simple(&self) -> Option<u8> {
+        match self {
+            Value::Simple(int) => Some(*int),
+            _ => None,
+        }
+    }
+
+    /// If the `Value` is a `SimpleType`. The value can only be in [0..23] or [32..255].
+    ///
+    /// ```
+    /// # use ciborium::{Value, value::Integer};
+    /// #
+    /// assert_eq!(Value::Simple(59).into_simple(), Ok(59));
+    ///
+    /// assert_eq!(Value::Bool(true).into_simple(), Err(Value::Bool(true)));
+    /// ```
+    pub fn into_simple(self) -> Result<u8, Self> {
+        match self {
+            Value::Simple(int) => Ok(int),
             other => Err(other),
         }
     }
