@@ -2,7 +2,7 @@
 
 use super::*;
 
-use ciborium_io::Read;
+use ciborium_io::{slice::SliceReader, Read};
 
 /// An error that occurred while decoding
 #[derive(Clone, Debug)]
@@ -134,6 +134,16 @@ impl<R: Read> Decoder<R> {
         self.offset
     }
 
+    /// Advances the tracked byte offset without performing any reads.
+    ///
+    /// This should be used only when bytes have been consumed by other means
+    /// (for example, by reusing an underlying slice) so that future error
+    /// messages report the correct position.
+    #[inline]
+    pub fn bump_offset(&mut self, len: usize) {
+        self.offset += len;
+    }
+
     /// Process an incoming bytes item
     ///
     /// In CBOR, bytes can be segmented. The logic for this can be a bit tricky,
@@ -172,5 +182,20 @@ impl<R: Read> Decoder<R> {
             Header::Text(len) => Ok(len),
             _ => Err(()),
         })
+    }
+}
+
+impl<'slice> Decoder<&mut SliceReader<'slice>> {
+    /// Attempts to borrow the next `len` bytes directly from the underlying slice.
+    #[inline]
+    pub fn try_borrow_slice(&mut self, len: usize) -> Option<&'slice [u8]> {
+        let start = self.offset;
+        if self.reader.contains_range(start, len) {
+            self.reader.skip(len);
+            self.offset += len;
+            Some(self.reader.slice_at(start, len))
+        } else {
+            None
+        }
     }
 }

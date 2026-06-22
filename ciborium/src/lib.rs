@@ -102,6 +102,10 @@ pub mod value;
 pub use crate::de::from_reader;
 #[doc(inline)]
 pub use crate::de::from_reader_with_buffer;
+#[doc(inline)]
+pub use crate::de::from_slice;
+#[doc(inline)]
+pub use crate::de::from_slice_with_buffer;
 
 #[doc(inline)]
 pub use crate::ser::into_writer;
