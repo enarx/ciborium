@@ -392,7 +392,7 @@ where
             return match self.decoder.pull()? {
                 Header::Tag(..) => continue,
 
-                Header::Bytes(Some(len)) if len <= self.scratch.len() => {
+                Header::Text(Some(len)) | Header::Bytes(Some(len)) if len <= self.scratch.len() => {
                     self.decoder.read_exact(&mut self.scratch[..len])?;
                     visitor.visit_bytes(&self.scratch[..len])
                 }
@@ -426,6 +426,19 @@ where
                     }
 
                     visitor.visit_byte_buf(buffer)
+                }
+
+                Header::Text(len) => {
+                    let mut buffer = String::new();
+
+                    let mut segments = self.decoder.text(len);
+                    while let Some(mut segment) = segments.pull()? {
+                        while let Some(chunk) = segment.pull(self.scratch)? {
+                            buffer.push_str(chunk);
+                        }
+                    }
+
+                    visitor.visit_byte_buf(buffer.into_bytes())
                 }
 
                 Header::Array(len) => self.recurse(|me| {
