@@ -11,10 +11,10 @@ Ciborium contains CBOR serialization and deserialization implementations for ser
 
 ## Quick Start
 
-You're probably looking for [`from_reader()`](crate::de::from_reader)
-and [`into_writer()`](crate::ser::into_writer), which are
-the main functions. Note that byte slices are also readers and writers and can be
-passed to these functions just as streams can.
+You're probably looking for [`from_reader()`](crate::de::from_reader),
+[`to_vec()`](crate::ser::to_vec), and [`into_writer()`](crate::ser::into_writer),
+which are the main functions. Note that byte slices are also readers and writers
+and can be passed to these functions just as streams can.
 
 For dynamic CBOR value creation/inspection, see [`Value`](crate::value::Value).
 
@@ -88,5 +88,24 @@ While the authors of this crate like packed encoding, it should generally
 be avoided because it can be fragile as it exposes invariants of your Rust
 code to remote actors. We might consider adding this in the future. If you
 are interested in this, please contact us.
+
+### Canonical Encodings
+
+The ciborium crate has support for various canonical encodings during
+serialization.
+
+- [`NoCanonicalization`](crate::canonical::NoCanonicalization): the default,
+   numbers are still encoded in their smallest form, but map keys are not
+   sorted for maximum serialization speed.
+- [`Rfc7049`](crate::canonical::Rfc7049): the canonicalization scheme from
+   RFC 7049 that sorts map keys in a length-first order. Eg.
+   `["a", "b", "aa"]`.
+- [`Rfc8949`](crate::canonical::Rfc8949): the canonicalization scheme from
+   RFC 8949 that sorts map keys in a bytewise lexicographic order. Eg.
+   `["a", "aa", "b"]`.
+
+To use canonicalization, you must enable the `std` feature. See the examples
+in [`to_vec_canonical`](crate::ser::to_vec_canonical) and
+[`into_writer_canonical`](crate::ser::into_writer_canonical) for more.
 
 License: Apache-2.0
