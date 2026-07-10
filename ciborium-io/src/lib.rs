@@ -54,6 +54,12 @@ pub trait Write {
 }
 
 #[cfg(feature = "std")]
+/// Abstracted EOF error.
+pub fn eof() -> std::io::Error {
+    std::io::ErrorKind::UnexpectedEof.into()
+}
+
+#[cfg(feature = "std")]
 impl<T: std::io::Read> Read for T {
     type Error = std::io::Error;
 
@@ -107,6 +113,12 @@ impl<W: Write + ?Sized> Write for &mut W {
 #[cfg(not(feature = "std"))]
 #[derive(Clone, Debug)]
 pub struct EndOfFile(());
+
+#[cfg(not(feature = "std"))]
+/// Abstracted EOF error.
+pub fn eof() -> EndOfFile {
+    EndOfFile(())
+}
 
 #[cfg(not(feature = "std"))]
 impl Read for &[u8] {
