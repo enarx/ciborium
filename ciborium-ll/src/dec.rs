@@ -2,7 +2,7 @@
 
 use super::*;
 
-use ciborium_io::Read;
+use ciborium_io::{slice::SliceReader, Read};
 
 /// An error that occurred while decoding
 #[derive(Clone, Debug)]
@@ -172,5 +172,17 @@ impl<R: Read> Decoder<R> {
             Header::Text(len) => Ok(len),
             _ => Err(()),
         })
+    }
+}
+
+impl<'slice> Decoder<SliceReader<'slice>> {
+    /// Attempts to borrow the next `len` bytes directly from the underlying slice.
+    #[inline]
+    pub fn try_borrow_slice(&mut self, len: usize) -> Option<&'slice [u8]> {
+        let slice = self.reader.take(len);
+        if slice.is_some() {
+            self.offset += len;
+        }
+        slice
     }
 }

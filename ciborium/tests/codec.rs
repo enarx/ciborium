@@ -301,7 +301,7 @@ fn codec<'de, T: Serialize + Clone, V: Debug + PartialEq + DeserializeOwned, F: 
         assert_eq!(bytes, encoded);
 
         let encoded = Value::serialized(&input).unwrap();
-        eprintln!("{:x?} == {:x?}", &value, &encoded);
+        eprintln!("{value:x?} == {encoded:x?}");
         assert!(veq(&value, &encoded));
     }
 
@@ -311,12 +311,12 @@ fn codec<'de, T: Serialize + Clone, V: Debug + PartialEq + DeserializeOwned, F: 
     assert_eq!(answer, decoded);
 
     let decoded: Value = from_reader(&bytes[..]).unwrap();
-    eprintln!("{:x?} == {:x?}", &value, &decoded);
+    eprintln!("{value:x?} == {decoded:x?}");
     assert!(veq(&value, &decoded));
 
     let mut scratch = vec![0; 65536];
     let decoded: Value = from_reader_with_buffer(&bytes[..], &mut scratch).unwrap();
-    eprintln!("{:x?} == {:x?}", &value, &decoded);
+    eprintln!("{value:x?} == {decoded:x?}");
     assert!(veq(&value, &decoded));
 
     let decoded: V = value.deserialized().unwrap();
