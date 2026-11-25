@@ -52,14 +52,70 @@ pub struct Deserializer<'b, R> {
     decoder: Decoder<R>,
     scratch: &'b mut [u8],
     recurse: usize,
+    max_items: Option<usize>,
 }
 
-fn noop(_: u8) {}
+impl<R> Deserializer<'_, R> {
+    /// Limits the total number of CBOR items (scalars, strings, containers, and tags) that this
+    /// deserializer will accept before returning an error.
+    #[inline]
+    pub fn with_max_items(mut self, limit: usize) -> Self {
+        self.max_items = Some(limit);
+        self
+    }
+}
+
+#[cold]
+fn allocation_failed<T>() -> Error<T> {
+    let mut msg = String::new();
+    if msg.try_reserve_exact("allocation failed".len()).is_ok() {
+        msg.push_str("allocation failed");
+    }
+    Error::Semantic(None, msg)
+}
+
+#[inline]
+fn consume_item<T>(max_items: &mut Option<usize>, offset: Option<usize>) -> Result<(), Error<T>> {
+    if let Some(remaining) = max_items.as_mut() {
+        if *remaining == 0 {
+            return Err(Error::semantic(offset, "item limit exceeded"));
+        }
+        *remaining -= 1;
+    }
+    Ok(())
+}
+
+fn noop<T>(_: u8) -> Result<(), Error<T>> {
+    Ok(())
+}
 
 impl<'a, R: Read> Deserializer<'a, R>
 where
     R::Error: core::fmt::Debug,
 {
+    #[inline]
+    fn pull_item(&mut self) -> Result<Header, Error<R::Error>> {
+        let offset = self.decoder.offset();
+        let header = self.decoder.pull()?;
+        if !matches!(header, Header::Break) {
+            consume_item(&mut self.max_items, Some(offset))?;
+        }
+        Ok(header)
+    }
+
+    #[inline]
+    fn check_remaining_items(&mut self, count: usize) -> Result<(), Error<R::Error>> {
+        if let Some(remaining) = self.max_items {
+            if count > remaining {
+                return Err(Error::semantic(
+                    self.decoder.offset(),
+                    "item limit exceeded",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     #[inline]
     fn recurse<V, F: FnOnce(&mut Self) -> Result<V, Error<R::Error>>>(
         &mut self,
@@ -76,7 +132,7 @@ where
     }
 
     #[inline]
-    fn integer<A: FnMut(u8)>(
+    fn integer<A: FnMut(u8) -> Result<(), Error<R::Error>>>(
         &mut self,
         mut header: Option<Header>,
         should_append: bool,
@@ -85,7 +141,7 @@ where
         loop {
             let header = match header.take() {
                 Some(h) => h,
-                None => self.decoder.pull()?,
+                None => self.pull_item()?,
             };
 
             let neg = match header {
@@ -101,19 +157,22 @@ where
             let mut value = [0u8; 16];
             let mut index = 0usize;
 
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Bytes(len) => {
                     let mut segments = self.decoder.bytes(len);
                     while let Some(mut segment) = segments.pull()? {
+                        if len.is_none() {
+                            consume_item(&mut self.max_items, None)?;
+                        }
                         while let Some(chunk) = segment.pull(&mut buffer)? {
                             for b in chunk {
                                 match index {
                                     16 => {
                                         if should_append {
                                             for v in value {
-                                                append(v);
+                                                append(v)?;
                                             }
-                                            append(*b);
+                                            append(*b)?;
                                             index = 17; // Indicate overflow, see below
                                             continue;
                                         }
@@ -121,7 +180,7 @@ where
                                     }
                                     17 => {
                                         debug_assert!(should_append);
-                                        append(*b);
+                                        append(*b)?;
                                         continue;
                                     }
                                     0 if *b == 0 => continue, // Skip leading zeros
@@ -179,21 +238,24 @@ where
             Header::Map(..) => self.deserialize_map(visitor),
 
             Header::Tag(tag) => {
-                let _: Header = self.decoder.pull()?;
+                let _: Header = self.pull_item()?;
 
                 match tag {
                     tag::BIGPOS | tag::BIGNEG => {
                         let mut bytes = Vec::new();
-                        let result =
-                            match self.integer(Some(Header::Tag(tag)), true, |b| bytes.push(b))? {
-                                (false, _) if !bytes.is_empty() => {
-                                    let access =
-                                        TagAccess::new(BytesDeserializer::new(&bytes), Some(tag));
-                                    return visitor.visit_enum(access);
-                                }
-                                (false, raw) => return visitor.visit_u128(raw),
-                                (true, raw) => i128::try_from(raw).map(|x| x ^ !0),
-                            };
+                        let result = match self.integer(Some(Header::Tag(tag)), true, |b| {
+                            bytes.try_reserve(1).map_err(|_| allocation_failed())?;
+                            bytes.push(b);
+                            Ok(())
+                        })? {
+                            (false, _) if !bytes.is_empty() => {
+                                let access =
+                                    TagAccess::new(BytesDeserializer::new(&bytes), Some(tag));
+                                return visitor.visit_enum(access);
+                            }
+                            (false, raw) => return visitor.visit_u128(raw),
+                            (true, raw) => i128::try_from(raw).map(|x| x ^ !0),
+                        };
 
                         match result {
                             Ok(x) => visitor.visit_i128(x),
@@ -225,7 +287,7 @@ where
         loop {
             let offset = self.decoder.offset();
 
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Tag(..) => continue,
                 Header::Simple(simple::FALSE) => visitor.visit_bool(false),
                 Header::Simple(simple::TRUE) => visitor.visit_bool(true),
@@ -242,7 +304,7 @@ where
     #[inline]
     fn deserialize_f64<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Tag(..) => continue,
                 Header::Float(x) => visitor.visit_f64(x),
                 h => Err(h.expected("float")),
@@ -320,7 +382,7 @@ where
     fn deserialize_char<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
             let offset = self.decoder.offset();
-            let header = self.decoder.pull()?;
+            let header = self.pull_item()?;
 
             return match header {
                 Header::Tag(..) => continue,
@@ -347,7 +409,7 @@ where
         loop {
             let offset = self.decoder.offset();
 
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Tag(..) => continue,
 
                 Header::Text(Some(len)) if len <= self.scratch.len() => {
@@ -366,7 +428,7 @@ where
 
     fn deserialize_string<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Tag(..) => continue,
 
                 Header::Text(len) => {
@@ -374,7 +436,13 @@ where
 
                     let mut segments = self.decoder.text(len);
                     while let Some(mut segment) = segments.pull()? {
+                        if len.is_none() {
+                            consume_item(&mut self.max_items, None)?;
+                        }
                         while let Some(chunk) = segment.pull(self.scratch)? {
+                            buffer
+                                .try_reserve(chunk.len())
+                                .map_err(|_| allocation_failed())?;
                             buffer.push_str(chunk);
                         }
                     }
@@ -389,7 +457,7 @@ where
 
     fn deserialize_bytes<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Tag(..) => continue,
 
                 Header::Bytes(Some(len)) if len <= self.scratch.len() => {
@@ -397,10 +465,15 @@ where
                     visitor.visit_bytes(&self.scratch[..len])
                 }
 
-                Header::Array(len) => self.recurse(|me| {
-                    let access = Access(me, len);
-                    visitor.visit_seq(access)
-                }),
+                Header::Array(len) => {
+                    if let Some(len) = len {
+                        self.check_remaining_items(len)?;
+                    }
+                    self.recurse(|me| {
+                        let access = Access(me, len);
+                        visitor.visit_seq(access)
+                    })
+                }
 
                 header => Err(header.expected("bytes")),
             };
@@ -412,7 +485,7 @@ where
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
         loop {
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Tag(..) => continue,
 
                 Header::Bytes(len) => {
@@ -420,7 +493,13 @@ where
 
                     let mut segments = self.decoder.bytes(len);
                     while let Some(mut segment) = segments.pull()? {
+                        if len.is_none() {
+                            consume_item(&mut self.max_items, None)?;
+                        }
                         while let Some(chunk) = segment.pull(self.scratch)? {
+                            buffer
+                                .try_reserve(chunk.len())
+                                .map_err(|_| allocation_failed())?;
                             buffer.extend_from_slice(chunk);
                         }
                     }
@@ -428,10 +507,15 @@ where
                     visitor.visit_byte_buf(buffer)
                 }
 
-                Header::Array(len) => self.recurse(|me| {
-                    let access = Access(me, len);
-                    visitor.visit_seq(access)
-                }),
+                Header::Array(len) => {
+                    if let Some(len) = len {
+                        self.check_remaining_items(len)?;
+                    }
+                    self.recurse(|me| {
+                        let access = Access(me, len);
+                        visitor.visit_seq(access)
+                    })
+                }
 
                 header => Err(header.expected("byte buffer")),
             };
@@ -440,20 +524,31 @@ where
 
     fn deserialize_seq<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Tag(..) => continue,
 
-                Header::Array(len) => self.recurse(|me| {
-                    let access = Access(me, len);
-                    visitor.visit_seq(access)
-                }),
+                Header::Array(len) => {
+                    if let Some(len) = len {
+                        self.check_remaining_items(len)?;
+                    }
+                    self.recurse(|me| {
+                        let access = Access(me, len);
+                        visitor.visit_seq(access)
+                    })
+                }
 
                 Header::Bytes(len) => {
                     let mut buffer = Vec::new();
 
                     let mut segments = self.decoder.bytes(len);
                     while let Some(mut segment) = segments.pull()? {
+                        if len.is_none() {
+                            consume_item(&mut self.max_items, None)?;
+                        }
                         while let Some(chunk) = segment.pull(self.scratch)? {
+                            buffer
+                                .try_reserve(chunk.len())
+                                .map_err(|_| allocation_failed())?;
                             buffer.extend_from_slice(chunk);
                         }
                     }
@@ -468,13 +563,21 @@ where
 
     fn deserialize_map<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Tag(..) => continue,
 
-                Header::Map(len) => self.recurse(|me| {
-                    let access = Access(me, len);
-                    visitor.visit_map(access)
-                }),
+                Header::Map(len) => {
+                    if let Some(len) = len {
+                        let entries = len.checked_mul(2).ok_or_else(|| {
+                            Error::semantic(self.decoder.offset(), "item limit exceeded")
+                        })?;
+                        self.check_remaining_items(entries)?;
+                    }
+                    self.recurse(|me| {
+                        let access = Access(me, len);
+                        visitor.visit_map(access)
+                    })
+                }
 
                 header => Err(header.expected("map")),
             };
@@ -514,7 +617,7 @@ where
         loop {
             let offset = self.decoder.offset();
 
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Tag(..) => continue,
 
                 Header::Text(Some(len)) if len <= self.scratch.len() => {
@@ -544,9 +647,12 @@ where
 
     #[inline]
     fn deserialize_option<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let offset = self.decoder.offset();
         match self.decoder.pull()? {
-            Header::Simple(simple::UNDEFINED) => visitor.visit_none(),
-            Header::Simple(simple::NULL) => visitor.visit_none(),
+            Header::Simple(simple::UNDEFINED) | Header::Simple(simple::NULL) => {
+                consume_item(&mut self.max_items, Some(offset))?;
+                visitor.visit_none()
+            }
             header => {
                 self.decoder.push(header);
                 visitor.visit_some(self)
@@ -557,7 +663,7 @@ where
     #[inline]
     fn deserialize_unit<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         loop {
-            return match self.decoder.pull()? {
+            return match self.pull_item()? {
                 Header::Simple(simple::UNDEFINED) => visitor.visit_unit(),
                 Header::Simple(simple::NULL) => visitor.visit_unit(),
                 Header::Tag(..) => continue,
@@ -592,8 +698,12 @@ where
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
         if name == "@@TAG@@" {
+            let offset = self.decoder.offset();
             let tag = match self.decoder.pull()? {
-                Header::Tag(x) => Some(x),
+                Header::Tag(x) => {
+                    consume_item(&mut self.max_items, Some(offset))?;
+                    Some(x)
+                }
                 header => {
                     self.decoder.push(header);
                     None
@@ -607,9 +717,13 @@ where
         }
 
         loop {
+            let offset = self.decoder.offset();
             match self.decoder.pull()? {
-                Header::Tag(..) => continue,
-                Header::Map(Some(1)) => (),
+                Header::Tag(..) => {
+                    consume_item(&mut self.max_items, Some(offset))?;
+                    continue;
+                }
+                Header::Map(Some(1)) => consume_item(&mut self.max_items, Some(offset))?,
                 header @ Header::Text(..) => self.decoder.push(header),
                 header => return Err(header.expected("enum")),
             }
@@ -810,6 +924,7 @@ where
         decoder: reader.into(),
         scratch: scratch_buffer,
         recurse: 256,
+        max_items: None,
     };
 
     T::deserialize(&mut reader)
@@ -834,6 +949,7 @@ where
         decoder: reader.into(),
         scratch: &mut scratch,
         recurse: recurse_limit,
+        max_items: None,
     };
 
     T::deserialize(&mut reader)
@@ -852,6 +968,7 @@ where
         decoder: reader.into(),
         scratch: scratch_buffer,
         recurse: 256,
+        max_items: None,
     }
 }
 
@@ -873,5 +990,6 @@ where
         decoder: reader.into(),
         scratch: scratch_buffer,
         recurse: recurse_limit,
+        max_items: None,
     }
 }
