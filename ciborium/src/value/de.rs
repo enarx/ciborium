@@ -51,6 +51,18 @@ macro_rules! mkvisit {
     };
 }
 
+#[cold]
+fn allocation_failed<E: de::Error>() -> E {
+    let mut probe = String::new();
+    let msg = if probe.try_reserve_exact("allocation failed".len()).is_ok() {
+        drop(probe);
+        "allocation failed"
+    } else {
+        ""
+    };
+    de::Error::custom(msg)
+}
+
 struct Visitor;
 
 impl<'de> serde::de::Visitor<'de> for Visitor {
@@ -78,13 +90,37 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
         visit_u128(u128),
 
         visit_char(char),
-        visit_str(&str),
-        visit_borrowed_str(&'de str),
         visit_string(String),
 
-        visit_bytes(&[u8]),
-        visit_borrowed_bytes(&'de [u8]),
         visit_byte_buf(Vec<u8>),
+    }
+
+    #[inline]
+    fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+        let mut s = String::new();
+        s.try_reserve_exact(v.len())
+            .map_err(|_| allocation_failed())?;
+        s.push_str(v);
+        Ok(Value::Text(s))
+    }
+
+    #[inline]
+    fn visit_borrowed_str<E: de::Error>(self, v: &'de str) -> Result<Self::Value, E> {
+        self.visit_str(v)
+    }
+
+    #[inline]
+    fn visit_bytes<E: de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+        let mut b = Vec::new();
+        b.try_reserve_exact(v.len())
+            .map_err(|_| allocation_failed())?;
+        b.extend_from_slice(v);
+        Ok(Value::Bytes(b))
+    }
+
+    #[inline]
+    fn visit_borrowed_bytes<E: de::Error>(self, v: &'de [u8]) -> Result<Self::Value, E> {
+        self.visit_bytes(v)
     }
 
     #[inline]
@@ -118,6 +154,7 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
         let mut seq = Vec::new();
 
         while let Some(elem) = acc.next_element()? {
+            seq.try_reserve(1).map_err(|_| allocation_failed())?;
             seq.push(elem);
         }
 
@@ -126,11 +163,13 @@ impl<'de> serde::de::Visitor<'de> for Visitor {
 
     #[inline]
     fn visit_map<A: de::MapAccess<'de>>(self, mut acc: A) -> Result<Self::Value, A::Error> {
-        let mut map = Vec::<(Value, Value)>::with_capacity(
-            acc.size_hint().filter(|&l| l < 1024).unwrap_or(0),
-        );
+        let mut map = Vec::<(Value, Value)>::new();
+        if let Some(hint) = acc.size_hint().filter(|&l| l < 1024) {
+            map.try_reserve(hint).map_err(|_| allocation_failed())?;
+        }
 
         while let Some(kv) = acc.next_entry()? {
+            map.try_reserve(1).map_err(|_| allocation_failed())?;
             map.push(kv);
         }
 
